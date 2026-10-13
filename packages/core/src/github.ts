@@ -129,3 +129,19 @@ export async function showCard(config: Config, number: number, client = new GitH
   if (!card?.repository) throw new Error(`Issue card #${number} not found on project`);
   return readIssue(card.repository, number, client);
 }
+
+export async function moveCard(config: Config, number: number, column: string, client = new GitHubClient()): Promise<void> {
+  const board = await readBoard(config, client);
+  const item = board.items.find(candidate => candidate.number === number);
+  if (!item) throw new Error(`Card #${number} not found on project`);
+  if (!board.columns.includes(column)) throw new Error(`Unknown column ${column}`);
+  const fields = await client.query<{ node?: { fields: { nodes: ({ id: string; name: string; options?: { id: string; name: string }[] } | null)[] } } }>(
+    'query Fields($id:ID!) { node(id:$id) { ... on ProjectV2 { fields(first:100) { nodes { ... on ProjectV2SingleSelectField { id name options { id name } } } } } } }',
+    { id: board.id }
+  );
+  const field = fields.node?.fields.nodes.find(candidate => candidate?.name === config.board.statusField);
+  const option = field?.options?.find(candidate => candidate.name === column);
+  if (!field || !option) throw new Error(`Status option ${column} not found on project`);
+  await client.query('mutation Move($project:ID!,$item:ID!,$field:ID!,$option:String!) { updateProjectV2ItemFieldValue(input:{projectId:$project,itemId:$item,fieldId:$field,value:{singleSelectOptionId:$option}}) { projectV2Item { id } } }',
+    { project: board.id, item: item.id, field: field.id, option: option.id });
+}

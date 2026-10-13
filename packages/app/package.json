@@ -1,14 +1,62 @@
 {
   "name": "@agent-board/app",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
+  "productName": "agent-board",
+  "description": "GitHub Projects board and live coding-agent console",
+  "author": "agent-board contributors",
+  "license": "MIT",
+  "repository": "https://github.com/bnjdpn/agent-board",
   "type": "module",
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc -p tsconfig.json && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
-    "dev": "npm run build && electron ."
+    "dev": "npm run build && electron .",
+    "dist:mac": "npm run build && electron-builder --mac dmg zip --publish never"
   },
-  "dependencies": { "@agent-board/core": "0.0.1", "dompurify": "^3.2.6", "marked": "^16.3.0" },
-  "devDependencies": { "electron": "^38.2.2", "vite": "^7.1.7" }
+  "dependencies": {
+    "@agent-board/core": "0.1.0",
+    "dompurify": "^3.2.6",
+    "electron-updater": "^6.8.9",
+    "marked": "^16.3.0"
+  },
+  "devDependencies": {
+    "electron": "38.8.6",
+    "electron-builder": "^26.15.3",
+    "vite": "^7.1.7"
+  },
+  "build": {
+    "appId": "dev.agentboard.desktop",
+    "productName": "agent-board",
+    "directories": {
+      "output": "../../out",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json",
+      "node_modules/**/*"
+    ],
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "build/icon.icns",
+      "identity": null,
+      "hardenedRuntime": false
+    },
+    "linux": {
+      "icon": "build/icon.png"
+    },
+    "win": {
+      "icon": "build/icon.ico"
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "bnjdpn",
+      "repo": "agent-board"
+    }
+  }
 }

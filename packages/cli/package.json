@@ -1,8 +1,15 @@
 {
   "name": "@agent-board/cli",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "type": "module",
-  "bin": { "agent-board": "./dist/index.js" },
-  "scripts": { "build": "tsc -p tsconfig.json", "typecheck": "tsc -p tsconfig.json --noEmit" },
-  "dependencies": { "@agent-board/core": "0.0.1" }
+  "bin": {
+    "agent-board": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@agent-board/core": "0.1.0"
+  }
 }

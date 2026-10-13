@@ -12,5 +12,12 @@
       { "kind": "plain", "pattern": "RESULT*" }
     ]
   },
-  "launcher": { "command": "sceo-job-window", "args": ["<job>", "--tab", "sceo-tab"] }
+  "agents": { "default": { "engine": "codex", "model": "default", "effort": "medium" } },
+  "control": {
+    "stateFile": "agent-board.state.json",
+    "holdFile": "~/Documents/Apps/archives/jobs/FILL_HOLD",
+    "readyColumns": ["À faire"],
+    "wip": { "À faire": 2, "En cours": 3 }
+  },
+  "launcher": { "command": "your-job-launcher", "args": ["--card", "<card>", "--engine", "<engine>", "--model", "<model>", "--effort", "<effort>"] }
 }
