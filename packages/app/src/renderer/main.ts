@@ -121,6 +121,12 @@ function render(): void {
 }
 
 async function start(): Promise<void> {
+  if (!window.agentBoard) {
+    const message = 'Le pont preload (window.agentBoard) est absent : l’app ne peut pas lire le board. Voir ~/Library/Logs/agent-board/main.log.';
+    (window as unknown as { agentBoardLog?: (text: string) => void }).agentBoardLog?.('bridge missing in renderer');
+    root.replaceChildren(element('p', 'error', message));
+    return;
+  }
   try {
     const status = await window.agentBoard.setupStatus();
     if (!status.ready) { showSetup(status); return; }
@@ -297,6 +303,12 @@ function showSetup(status: { path: string; error?: string; missing?: boolean }):
 }
 
 async function start(): Promise<void> {
+  if (!window.agentBoard) {
+    const message = 'Le pont preload (window.agentBoard) est absent : l’app ne peut pas lire le board. Voir ~/Library/Logs/agent-board/main.log.';
+    (window as unknown as { agentBoardLog?: (text: string) => void }).agentBoardLog?.('bridge missing in renderer');
+    root.replaceChildren(element('p', 'error', message));
+    return;
+  }
   try {
     const status = await window.agentBoard.setupStatus();
     if (!status.ready) { showSetup(status); return; }

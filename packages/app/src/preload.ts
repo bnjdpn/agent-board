@@ -28,4 +28,6 @@ const api = {
     return () => ipcRenderer.removeListener('tail-error', listener);
   }
 };
-contextBridge.exposeInMainWorld('agentBoard', api);
+try { contextBridge.exposeInMainWorld('agentBoard', api); }
+catch (error) { ipcRenderer.send('renderer-log', `exposeInMainWorld failed: ${(error as Error).message}`); }
+contextBridge.exposeInMainWorld('agentBoardLog', (message: string) => ipcRenderer.send('renderer-log', message));

@@ -51,20 +51,31 @@ function defaultConfig(owner: string, projectNumber: number, jobsDirectory: stri
 function makeWindow(): void {
   const window = new BrowserWindow({
     width: 1450, height: 920, minWidth: 850, minHeight: 600,
-    webPreferences: { preload: join(directory, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
+    webPreferences: { preload: join(directory, 'preload.cjs'), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
   // Always show the window on a visible display, even if a previous position was off-screen.
   const { workArea } = screen.getPrimaryDisplay();
   window.setBounds({ x: workArea.x + Math.max(0, Math.round((workArea.width - Math.min(1450, workArea.width)) / 2)), y: workArea.y, width: Math.min(1450, workArea.width), height: Math.min(920, workArea.height) });
   window.once('ready-to-show', () => { window.show(); window.focus(); });
   window.webContents.on('did-fail-load', (_event, code, description, url) => log('did-fail-load', code, description, url));
+  window.webContents.on('preload-error', (_event, path, error) => log('preload-error', path, error));
+  window.webContents.on('console-message', (details: { level?: string; message?: string }) => { if (details.level === 'error' || details.level === 'warning') log('renderer console', details.level, details.message); });
+  window.webContents.on('did-finish-load', () => {
+    const check = `new Promise(r => setTimeout(() => r({ bridge: typeof window.agentBoard === 'object' && window.agentBoard !== null, cards: document.querySelectorAll('.card').length, setup: !!document.querySelector('form.setup'), error: (document.querySelector('.error')?.textContent ?? '').slice(0, 300) }), ${process.env.AGENT_BOARD_SMOKE ? 12000 : 8000}))`;
+    window.webContents.executeJavaScript(check).then((result: { bridge: boolean; cards: number; setup: boolean; error: string }) => {
+      log(result.bridge ? 'renderer check' : 'renderer check FAILED: preload bridge window.agentBoard missing', result);
+      if (process.env.AGENT_BOARD_SMOKE) app.exit(result.bridge && (result.cards > 0 || result.setup) && !result.error ? 0 : 1);
+    }).catch(error => { log('renderer check failed', error); if (process.env.AGENT_BOARD_SMOKE) app.exit(1); });
+  });
   window.webContents.on('render-process-gone', (_event, details) => log('render-process-gone', details));
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  window.on('closed', () => { tails.get(window.webContents.id)?.(); tails.delete(window.webContents.id); });
+  const contentsId = window.webContents.id;
+  window.on('closed', () => { tails.get(contentsId)?.(); tails.delete(contentsId); });
   window.loadFile(join(directory, 'renderer', 'index.html')).catch(error => log('loadFile failed', error));
   setTimeout(() => { if (!window.isDestroyed() && !window.isVisible()) window.show(); }, 3000);
 }
 
+ipcMain.on('renderer-log', (_event, message: unknown) => log('renderer', String(message).slice(0, 2000)));
 ipcMain.handle('setup-status', async () => {
   try { await configPromise; return { ready: true, path: configPath ?? 'agent-board.config.json' }; }
   catch (error) { return { ready: false, path: configPath ?? 'agent-board.config.json', error: (error as Error).message, missing: !configPath || !existsSync(configPath) }; }
