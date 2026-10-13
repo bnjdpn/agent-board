@@ -93,7 +93,42 @@ function render(): void {
   action(saveDefault, () => window.agentBoard.setDefaultAgent({ engine: engine.value as 'codex' | 'cursor', model: model.value.trim(), effort: effort.value.trim() }));
   defaultForm.append(engine, model, effort, saveDefault); defaultSettings.append(summary, defaultForm); toolbar.append(defaultSettings);
   const refresh = element('button', 'refresh', 'Actualiser');
-  refresh.addEventListener('click', () => { void load(); });
+  refresh.addEventListener('click', () => { function showSetup(status: { path: string; error?: string; missing?: boolean }): void {
+  const form = document.createElement('form');
+  form.className = 'setup';
+  form.append(element('h1', '', 'Configuration de agent-board'));
+  form.append(element('p', '', status.missing ? `Aucune configuration trouvée. Elle sera créée ici : ${status.path}` : `Configuration invalide (${status.path}) : ${status.error ?? ''}`));
+  const field = (label: string, name: string, value: string, type = 'text') => {
+    const wrapper = document.createElement('label');
+    wrapper.append(element('span', '', label));
+    const input = document.createElement('input'); input.name = name; input.value = value; input.type = type; input.required = name !== 'columns';
+    wrapper.append(input); form.append(wrapper);
+  };
+  field('Propriétaire GitHub (user ou org)', 'owner', '');
+  field('Numéro du GitHub Project', 'projectNumber', '1', 'number');
+  field('Dossier des jobs', 'jobsDirectory', '~/agent-jobs/<date>/<job>');
+  field('Colonnes (séparées par des virgules)', 'columns', 'Todo, In Progress, Done');
+  const message = element('p', 'error', '');
+  const submit = document.createElement('button'); submit.type = 'submit'; submit.textContent = 'Enregistrer et ouvrir le board';
+  form.append(submit, message);
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    const data = new FormData(form);
+    window.agentBoard.setupSave({ owner: String(data.get('owner')), projectNumber: Number(data.get('projectNumber')), jobsDirectory: String(data.get('jobsDirectory')), columns: String(data.get('columns')) })
+      .then(() => load()).catch(error => { message.textContent = (error as Error).message; });
+  });
+  root.replaceChildren(form);
+}
+
+async function start(): Promise<void> {
+  try {
+    const status = await window.agentBoard.setupStatus();
+    if (!status.ready) { showSetup(status); return; }
+  } catch (error) { root.replaceChildren(element('p', 'error', `Erreur de démarrage : ${(error as Error).message}`)); return; }
+  await load();
+}
+
+void start(); });
   toolbar.append(refresh);
   root.append(toolbar);
   const grid = element('main', 'board');
@@ -234,4 +269,39 @@ async function load(): Promise<void> {
   } catch (error) { root.replaceChildren(element('p', 'error', `Impossible de charger le projet : ${(error as Error).message}`)); }
 }
 
-void load();
+function showSetup(status: { path: string; error?: string; missing?: boolean }): void {
+  const form = document.createElement('form');
+  form.className = 'setup';
+  form.append(element('h1', '', 'Configuration de agent-board'));
+  form.append(element('p', '', status.missing ? `Aucune configuration trouvée. Elle sera créée ici : ${status.path}` : `Configuration invalide (${status.path}) : ${status.error ?? ''}`));
+  const field = (label: string, name: string, value: string, type = 'text') => {
+    const wrapper = document.createElement('label');
+    wrapper.append(element('span', '', label));
+    const input = document.createElement('input'); input.name = name; input.value = value; input.type = type; input.required = name !== 'columns';
+    wrapper.append(input); form.append(wrapper);
+  };
+  field('Propriétaire GitHub (user ou org)', 'owner', '');
+  field('Numéro du GitHub Project', 'projectNumber', '1', 'number');
+  field('Dossier des jobs', 'jobsDirectory', '~/agent-jobs/<date>/<job>');
+  field('Colonnes (séparées par des virgules)', 'columns', 'Todo, In Progress, Done');
+  const message = element('p', 'error', '');
+  const submit = document.createElement('button'); submit.type = 'submit'; submit.textContent = 'Enregistrer et ouvrir le board';
+  form.append(submit, message);
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    const data = new FormData(form);
+    window.agentBoard.setupSave({ owner: String(data.get('owner')), projectNumber: Number(data.get('projectNumber')), jobsDirectory: String(data.get('jobsDirectory')), columns: String(data.get('columns')) })
+      .then(() => load()).catch(error => { message.textContent = (error as Error).message; });
+  });
+  root.replaceChildren(form);
+}
+
+async function start(): Promise<void> {
+  try {
+    const status = await window.agentBoard.setupStatus();
+    if (!status.ready) { showSetup(status); return; }
+  } catch (error) { root.replaceChildren(element('p', 'error', `Erreur de démarrage : ${(error as Error).message}`)); return; }
+  await load();
+}
+
+void start();

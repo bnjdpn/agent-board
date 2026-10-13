@@ -1,23 +1,76 @@
-import { app, BrowserWindow, ipcMain, shell } from 'electron';
-import { join } from 'node:path';
+import { app, BrowserWindow, ipcMain, screen, shell } from 'electron';
+import { appendFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { activeCards, findJob, launchCard, listJobs, loadConfig, moveCard, readBoard, readControl, readIssue, setAgent, setDefaultAgent, setPause, setWip, tailJob, type AgentSettings } from '@agent-board/core';
-import { autoUpdater } from 'electron-updater';
+// electron-updater is CommonJS: a named ESM import of autoUpdater throws at load time and the app never opens a window.
+import electronUpdater from 'electron-updater';
+const { autoUpdater } = electronUpdater;
 
 const directory = fileURLToPath(new URL('.', import.meta.url));
 const tails = new Map<number, () => void>();
-const configPromise = loadConfig(process.env.AGENT_BOARD_CONFIG ?? (app.isPackaged ? join(app.getPath('userData'), 'agent-board.config.json') : undefined));
+const logFile = join(homedir(), 'Library', 'Logs', 'agent-board', 'main.log');
+function log(...parts: unknown[]): void {
+  const line = `${new Date().toISOString()} ${parts.map(part => part instanceof Error ? part.stack ?? part.message : typeof part === 'string' ? part : JSON.stringify(part)).join(' ')}\n`;
+  try { mkdirSync(dirname(logFile), { recursive: true }); appendFileSync(logFile, line); } catch { /* logging must never crash the app */ }
+  console.log(line.trimEnd());
+}
+process.on('uncaughtException', error => log('uncaughtException', error));
+process.on('unhandledRejection', error => log('unhandledRejection', error));
+
+const configPath = process.env.AGENT_BOARD_CONFIG ?? (app.isPackaged ? join(app.getPath('userData'), 'agent-board.config.json') : undefined);
+let configPromise = loadConfig(configPath);
+configPromise.catch(error => log('config load failed', configPath ?? 'agent-board.config.json', error));
+
+function defaultConfig(owner: string, projectNumber: number, jobsDirectory: string, columns: string[]): Record<string, unknown> {
+  return {
+    github: { owner, projectNumber },
+    board: { statusField: 'Status', columns, filterFields: [] },
+    jobs: {
+      directory: jobsDirectory,
+      cardPattern: '(?:card|issue)(?:\\s+[A-Za-z][\\w-]*)?\\s*#?(\\d+)|#(\\d+)',
+      adapters: [
+        { kind: 'transcript', pattern: '<engine>.log' }, { kind: 'jsonl', pattern: '<engine>.jsonl' },
+        { kind: 'plain', pattern: 'notify.log' }, { kind: 'plain', pattern: 'STATUS' }, { kind: 'plain', pattern: 'RESULT*' }
+      ]
+    },
+    agents: { default: { engine: 'codex', model: 'default', effort: 'medium' } }
+  };
+}
 
 function makeWindow(): void {
   const window = new BrowserWindow({
     width: 1450, height: 920, minWidth: 850, minHeight: 600,
     webPreferences: { preload: join(directory, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
+  // Always show the window on a visible display, even if a previous position was off-screen.
+  const { workArea } = screen.getPrimaryDisplay();
+  window.setBounds({ x: workArea.x + Math.max(0, Math.round((workArea.width - Math.min(1450, workArea.width)) / 2)), y: workArea.y, width: Math.min(1450, workArea.width), height: Math.min(920, workArea.height) });
+  window.once('ready-to-show', () => { window.show(); window.focus(); });
+  window.webContents.on('did-fail-load', (_event, code, description, url) => log('did-fail-load', code, description, url));
+  window.webContents.on('render-process-gone', (_event, details) => log('render-process-gone', details));
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   window.on('closed', () => { tails.get(window.webContents.id)?.(); tails.delete(window.webContents.id); });
-  void window.loadFile(join(directory, 'renderer', 'index.html'));
+  window.loadFile(join(directory, 'renderer', 'index.html')).catch(error => log('loadFile failed', error));
+  setTimeout(() => { if (!window.isDestroyed() && !window.isVisible()) window.show(); }, 3000);
 }
 
+ipcMain.handle('setup-status', async () => {
+  try { await configPromise; return { ready: true, path: configPath ?? 'agent-board.config.json' }; }
+  catch (error) { return { ready: false, path: configPath ?? 'agent-board.config.json', error: (error as Error).message, missing: !configPath || !existsSync(configPath) }; }
+});
+ipcMain.handle('setup-save', async (_event, input: { owner: string; projectNumber: number; jobsDirectory: string; columns: string }) => {
+  const target = configPath ?? join(process.cwd(), 'agent-board.config.json');
+  const columns = String(input.columns ?? '').split(',').map(value => value.trim()).filter(Boolean);
+  const config = defaultConfig(String(input.owner ?? '').trim(), Number(input.projectNumber), String(input.jobsDirectory ?? '').trim() || '~/agent-jobs/<date>/<job>', columns.length ? columns : ['Todo', 'In Progress', 'Done']);
+  mkdirSync(dirname(target), { recursive: true });
+  writeFileSync(target, `${JSON.stringify(config, null, 2)}\n`);
+  configPromise = loadConfig(target);
+  await configPromise;
+  log('config written', target);
+  return { ready: true, path: target };
+});
 ipcMain.handle('board', async () => readBoard(await configPromise));
 ipcMain.handle('jobs', async () => listJobs(await configPromise));
 ipcMain.handle('control', async () => {
@@ -74,6 +127,7 @@ ipcMain.handle('open-link', async (_event, url: string) => {
 });
 
 app.whenReady().then(() => {
+  log('app ready', app.getVersion(), 'packaged', app.isPackaged);
   makeWindow();
   if (app.isPackaged && process.platform === 'darwin') {
     autoUpdater.autoDownload = false;
@@ -81,5 +135,5 @@ app.whenReady().then(() => {
     autoUpdater.on('update-available', () => { autoUpdater.downloadUpdate().catch(error => console.error('Update download failed:', error)); });
   }
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) makeWindow(); });
-});
+}).catch(error => log('startup failed', error));
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

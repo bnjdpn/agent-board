@@ -3,6 +3,8 @@ import type { AgentSettings, Board, ControlState, IssueDetail, Job, LogEntry } f
 declare global {
   interface Window {
     agentBoard: {
+      setupStatus(): Promise<{ ready: boolean; path: string; error?: string; missing?: boolean }>;
+      setupSave(input: { owner: string; projectNumber: number; jobsDirectory: string; columns: string }): Promise<{ ready: boolean; path: string }>;
       board(): Promise<Board>;
       jobs(): Promise<Job[]>;
       control(): Promise<{ state: ControlState; defaults: AgentSettings; limits: Record<string, number>; active: number[] }>;

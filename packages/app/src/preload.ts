@@ -2,6 +2,8 @@ import { contextBridge, ipcRenderer } from 'electron';
 import type { AgentSettings, Board, ControlState, IssueDetail, Job, LogEntry } from '@agent-board/core';
 
 const api = {
+  setupStatus: (): Promise<{ ready: boolean; path: string; error?: string; missing?: boolean }> => ipcRenderer.invoke('setup-status'),
+  setupSave: (input: { owner: string; projectNumber: number; jobsDirectory: string; columns: string }): Promise<{ ready: boolean; path: string }> => ipcRenderer.invoke('setup-save', input),
   board: (): Promise<Board> => ipcRenderer.invoke('board'),
   jobs: (): Promise<Job[]> => ipcRenderer.invoke('jobs'),
   control: (): Promise<{ state: ControlState; defaults: AgentSettings; limits: Record<string, number>; active: number[] }> => ipcRenderer.invoke('control'),
