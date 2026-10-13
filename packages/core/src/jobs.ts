@@ -1,3 +1,4 @@
+import { execFile } from 'node:child_process';
 import { watch, type FSWatcher } from 'node:fs';
 import { open, readdir, readFile, stat } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
@@ -19,7 +20,31 @@ export function cardNumberFromPrompt(prompt: string, pattern?: string): number |
   return Number.isSafeInteger(number) && number > 0 ? number : undefined;
 }
 
+/** Card number from the prompt, falling back to a numeric segment of the job folder name (e.g. moveatlas-120, echappee-220-go-r3). */
+export function cardNumberForJob(prompt: string, jobName: string, pattern?: string): number | undefined {
+  const fromPrompt = cardNumberFromPrompt(prompt, pattern);
+  if (fromPrompt) return fromPrompt;
+  const match = jobName.match(/-(\d+)(?:-|$)/);
+  const number = Number(match?.[1]);
+  return Number.isSafeInteger(number) && number > 0 ? number : undefined;
+}
+
+/** Command lines of all processes (empty on platforms without ps). */
+export function processCommandLines(): Promise<string[]> {
+  return new Promise(resolve => {
+    execFile('ps', ['-axww', '-o', 'command='], { maxBuffer: 32 * 1024 * 1024 }, (error, stdout) => resolve(error ? [] : stdout.split('\n')));
+  });
+}
+
+/** A job is running while a process executes its launcher script (<job>/window.sh) or tees its engine log. */
+export function isJobRunning(path: string, commands: string[]): boolean {
+  const escaped = path.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const probe = new RegExp(`${escaped}/(?:window\\.sh|[^/\\s]+\\.log)(?:\\s|$)`);
+  return commands.some(command => (command.includes('window.sh') || command.startsWith('tee ')) && probe.test(command));
+}
+
 export async function listJobs(config: Config): Promise<Job[]> {
+  const commands = await processCommandLines();
   const root = rootDirectory(config.jobs.directory);
   const jobs: Job[] = [];
   let dates: string[];
@@ -39,7 +64,7 @@ export async function listJobs(config: Config): Promise<Job[]> {
       try { prompt = await readFile(join(path, 'prompt.md'), 'utf8'); } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       }
-      jobs.push({ id: `${date}/${jobName}`, path, cardNumber: cardNumberFromPrompt(prompt, config.jobs.cardPattern), modifiedAt: info.mtimeMs });
+      jobs.push({ id: `${date}/${jobName}`, path, cardNumber: cardNumberForJob(prompt, jobName, config.jobs.cardPattern), modifiedAt: info.mtimeMs, running: isJobRunning(path, commands) });
     }
   }
   return jobs.sort((a, b) => b.modifiedAt - a.modifiedAt);

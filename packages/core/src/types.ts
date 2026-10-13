@@ -35,5 +35,5 @@ export interface IssueDetail {
   labels: string[]; comments: { author: string; body: string; createdAt: string }[];
   pullRequests: PullRequest[];
 }
-export interface Job { id: string; path: string; cardNumber?: number; modifiedAt: number }
+export interface Job { id: string; path: string; cardNumber?: number; modifiedAt: number; running?: boolean }
 export interface LogEntry { file: string; text: string }

@@ -23,6 +23,15 @@ const configPath = process.env.AGENT_BOARD_CONFIG ?? (app.isPackaged ? join(app.
 let configPromise = loadConfig(configPath);
 configPromise.catch(error => log('config load failed', configPath ?? 'agent-board.config.json', error));
 
+async function logSnapshot(): Promise<void> {
+  try {
+    const config = await configPromise;
+    const [board, jobs] = await Promise.all([readBoard(config), listJobs(config)]);
+    const running = jobs.filter(job => job.running).map(job => `${job.id}#${job.cardNumber ?? '?'}`);
+    log('board loaded', board.items.length, 'cards;', jobs.length, 'jobs;', running.length, 'running:', running.join(', '));
+  } catch (error) { log('snapshot failed', error); }
+}
+
 function defaultConfig(owner: string, projectNumber: number, jobsDirectory: string, columns: string[]): Record<string, unknown> {
   return {
     github: { owner, projectNumber },
@@ -69,6 +78,7 @@ ipcMain.handle('setup-save', async (_event, input: { owner: string; projectNumbe
   configPromise = loadConfig(target);
   await configPromise;
   log('config written', target);
+  void logSnapshot();
   return { ready: true, path: target };
 });
 ipcMain.handle('board', async () => readBoard(await configPromise));
@@ -129,6 +139,7 @@ ipcMain.handle('open-link', async (_event, url: string) => {
 app.whenReady().then(() => {
   log('app ready', app.getVersion(), 'packaged', app.isPackaged);
   makeWindow();
+  void logSnapshot();
   if (app.isPackaged && process.platform === 'darwin') {
     autoUpdater.autoDownload = false;
     autoUpdater.checkForUpdates().catch(error => { console.error('Update check failed:', error); });

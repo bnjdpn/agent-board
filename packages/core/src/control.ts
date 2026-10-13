@@ -121,6 +121,7 @@ export async function activeCards(config: Config, state: ControlState): Promise<
   }
   for (const job of await listJobs(config)) {
     if (!job.cardNumber) continue;
+    if (job.running) { active.add(job.cardNumber); continue; }
     let status = '';
     try { status = (await readFile(`${job.path}/STATUS`, 'utf8')).trim().toUpperCase(); }
     catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
