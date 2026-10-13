@@ -1,0 +1,16 @@
+{
+  "github": { "owner": "bnjdpn", "projectNumber": 1 },
+  "board": { "statusField": "Status", "columns": ["Idées", "À faire", "En cours", "En revue", "Terminé"], "filterFields": ["Plateforme"] },
+  "jobs": {
+    "directory": "~/Documents/Apps/archives/jobs/<date>/<job>",
+    "cardPattern": "(?:carte|card|issue)(?:\\s+[A-Za-z][\\w-]*)?\\s*#?(\\d+)|#(\\d+)",
+    "adapters": [
+      { "kind": "transcript", "pattern": "<engine>.log" },
+      { "kind": "jsonl", "pattern": "<engine>.jsonl" },
+      { "kind": "plain", "pattern": "notify.log" },
+      { "kind": "plain", "pattern": "STATUS" },
+      { "kind": "plain", "pattern": "RESULT*" }
+    ]
+  },
+  "launcher": { "command": "sceo-job-window", "args": ["<job>", "--tab", "sceo-tab"] }
+}

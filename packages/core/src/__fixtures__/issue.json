@@ -1,0 +1,17 @@
+{
+  "data": {
+    "repository": {
+      "issue": {
+        "number": 254,
+        "title": "Build agent-board",
+        "url": "https://github.com/bnjdpn/Studio/issues/254",
+        "body": "## Goal\nBuild the board.",
+        "state": "OPEN",
+        "labels": { "nodes": [{ "name": "P1" }] },
+        "comments": { "nodes": [{ "author": { "login": "tester" }, "body": "Ready", "createdAt": "2026-10-13T12:00:00Z" }] },
+        "closedByPullRequestsReferences": { "nodes": [{ "number": 7, "title": "Implement board", "url": "https://github.com/bnjdpn/agent-board/pull/7", "state": "OPEN", "commits": { "nodes": [{ "commit": { "statusCheckRollup": { "state": "SUCCESS" } } }] } }] },
+        "timelineItems": { "nodes": [{ "source": { "number": 7, "title": "Implement board", "url": "https://github.com/bnjdpn/agent-board/pull/7", "state": "OPEN", "commits": { "nodes": [{ "commit": { "statusCheckRollup": { "state": "SUCCESS" } } }] } } }] }
+      }
+    }
+  }
+}

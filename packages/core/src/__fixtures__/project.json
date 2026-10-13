@@ -1,0 +1,28 @@
+{
+  "data": {
+    "user": {
+      "projectV2": {
+        "id": "PVT_1",
+        "title": "Studio",
+        "items": {
+          "pageInfo": { "hasNextPage": false, "endCursor": null },
+          "nodes": [
+            {
+              "id": "ITEM_254",
+              "content": { "number": 254, "title": "Build agent-board", "url": "https://github.com/bnjdpn/Studio/issues/254", "repository": { "nameWithOwner": "bnjdpn/Studio" } },
+              "fieldValues": { "nodes": [
+                { "name": "En cours", "field": { "name": "Status" } },
+                { "name": "macOS", "field": { "name": "Plateforme" } }
+              ] }
+            },
+            {
+              "id": "ITEM_DRAFT",
+              "content": { "title": "Sketch" },
+              "fieldValues": { "nodes": [{ "name": "Idées", "field": { "name": "Status" } }] }
+            }
+          ]
+        }
+      }
+    }
+  }
+}
