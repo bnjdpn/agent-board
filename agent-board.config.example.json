@@ -1,0 +1,16 @@
+{
+  "github": { "owner": "YOUR_OWNER", "projectNumber": 1 },
+  "board": { "statusField": "Status", "columns": ["Todo", "In Progress", "Done"], "filterFields": ["Platform"] },
+  "jobs": {
+    "directory": "~/agent-jobs/<date>/<job>",
+    "cardPattern": "(?:card|issue)(?:\\s+[A-Za-z][\\w-]*)?\\s*#?(\\d+)|#(\\d+)",
+    "adapters": [
+      { "kind": "transcript", "pattern": "<engine>.log" },
+      { "kind": "jsonl", "pattern": "<engine>.jsonl" },
+      { "kind": "plain", "pattern": "notify.log" },
+      { "kind": "plain", "pattern": "STATUS" },
+      { "kind": "plain", "pattern": "RESULT*" }
+    ]
+  },
+  "launcher": { "command": "your-job-launcher", "args": ["<job>"] }
+}
