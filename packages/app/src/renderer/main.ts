@@ -1,11 +1,12 @@
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
-import type { Board, BoardItem, IssueDetail, Job } from '@agent-board/core';
+import type { AgentSettings, Board, BoardItem, ControlState, IssueDetail, Job } from '@agent-board/core';
 import './style.css';
 
 const root = document.querySelector<HTMLDivElement>('#app')!;
 let board: Board | undefined;
 let jobs: Job[] = [];
+let control: { state: ControlState; defaults: AgentSettings; limits: Record<string, number>; active: number[] } | undefined;
 let statusFilter = '';
 let fieldName = '';
 let fieldValue = '';
@@ -36,15 +37,25 @@ function stopTail(): void {
   void window.agentBoard.stopTail();
 }
 
+async function refreshControl(): Promise<void> { control = await window.agentBoard.control(); render(); }
+function action(button: HTMLButtonElement, work: () => Promise<unknown>): void {
+  button.addEventListener('click', event => {
+    event.stopPropagation();
+    button.disabled = true;
+    void work().then(refreshControl).catch(error => { window.alert((error as Error).message); button.disabled = false; });
+  });
+}
+
 function render(): void {
   root.replaceChildren();
   const header = element('header', 'topbar');
   const title = element('div');
   title.append(element('span', 'eyebrow', 'AGENT BOARD'), element('h1', '', board?.title ?? 'GitHub Project'));
   header.append(title);
-  const metrics = element('div', 'metrics');
-  metrics.append(element('div', 'metric', 'Releases / semaine  —'), element('div', 'metric', 'MRR  —'));
-  header.append(metrics);
+  const pipeline = element('button', 'pipeline', control?.state.paused || control?.state.externalHold ? '▶ Reprendre' : '❚❚ Pause');
+  pipeline.title = 'Pause globale des lancements';
+  action(pipeline, () => window.agentBoard.pause(!(control?.state.paused || control?.state.externalHold)));
+  header.append(pipeline);
   root.append(header);
   if (!board) { root.append(element('p', 'loading', 'Chargement du projet…')); return; }
   const toolbar = element('section', 'toolbar');
@@ -71,6 +82,16 @@ function render(): void {
       toolbar.append(valueSelect);
     }
   }
+  const defaultSettings = element('details', 'default-settings');
+  const summary = element('summary', '', 'Agent par défaut');
+  const defaultForm = element('div', 'default-form');
+  const engine = element('select') as HTMLSelectElement;
+  engine.append(new Option('Codex', 'codex'), new Option('Cursor', 'cursor')); engine.value = control?.defaults.engine ?? 'codex';
+  const model = element('input') as HTMLInputElement; model.value = control?.defaults.model ?? 'default'; model.placeholder = 'Modèle'; model.setAttribute('aria-label', 'Modèle par défaut');
+  const effort = element('input') as HTMLInputElement; effort.value = control?.defaults.effort ?? 'medium'; effort.placeholder = 'Effort'; effort.setAttribute('aria-label', 'Effort par défaut');
+  const saveDefault = element('button', 'small-button', 'Enregistrer');
+  action(saveDefault, () => window.agentBoard.setDefaultAgent({ engine: engine.value as 'codex' | 'cursor', model: model.value.trim(), effort: effort.value.trim() }));
+  defaultForm.append(engine, model, effort, saveDefault); defaultSettings.append(summary, defaultForm); toolbar.append(defaultSettings);
   const refresh = element('button', 'refresh', 'Actualiser');
   refresh.addEventListener('click', () => { void load(); });
   toolbar.append(refresh);
@@ -79,15 +100,45 @@ function render(): void {
   const visible = board.items.filter(item => (!statusFilter || item.status === statusFilter) && (!fieldName || !fieldValue || item.fields[fieldName] === fieldValue));
   for (const column of board.columns) {
     const section = element('section', 'column');
+    section.addEventListener('dragover', event => { if (event.dataTransfer?.types.includes('text/plain')) event.preventDefault(); });
+    section.addEventListener('drop', event => {
+      event.preventDefault();
+      const number = Number(event.dataTransfer?.getData('text/plain'));
+      const current = board?.items.find(candidate => candidate.number === number);
+      if (!current || current.status === column) return;
+      void window.agentBoard.move(number, column).then(load).catch(error => window.alert((error as Error).message));
+    });
     const items = visible.filter(item => item.status === column);
     const heading = element('div', 'column-title');
-    heading.append(element('h2', '', column), element('span', 'count', String(items.length)));
+    const activeCount = board.items.filter(item => item.status === column && item.number && control?.active.includes(item.number)).length;
+    const limit = control?.state.wip[column] ?? control?.limits[column];
+    heading.append(element('h2', '', column), element('span', 'count', `${activeCount}/${limit ?? '∞'} actifs`));
     section.append(heading);
+    const controls = element('div', 'column-controls');
+    const pause = element('button', 'small-button', control?.state.columns.includes(column) ? '▶' : '❚❚');
+    pause.title = control?.state.columns.includes(column) ? 'Reprendre cette colonne' : 'Mettre cette colonne en pause';
+    action(pause, () => window.agentBoard.pause(!control?.state.columns.includes(column), { column }));
+    const label = element('label', '', 'WIP');
+    const input = element('input') as HTMLInputElement;
+    input.type = 'number'; input.min = '0'; input.placeholder = '∞'; input.value = limit === undefined ? '' : String(limit); input.title = 'Limite de jobs actifs';
+    input.addEventListener('change', () => {
+      if (input.value === '') { input.value = limit === undefined ? '' : String(limit); return; }
+      void window.agentBoard.setWip(column, Number(input.value)).then(refreshControl).catch(error => window.alert((error as Error).message));
+    });
+    label.append(input); controls.append(pause, label); section.append(controls);
     for (const item of items) {
       const card = element('button', 'card');
+      if (item.number) {
+        card.draggable = true;
+        card.addEventListener('dragstart', event => event.dataTransfer?.setData('text/plain', String(item.number)));
+      }
       card.append(element('span', 'card-number', item.number ? `#${item.number}` : 'Brouillon'), element('strong', '', item.title));
       const activeJob = jobs.find(job => job.cardNumber === item.number && item.number !== undefined);
-      if (activeJob) card.append(element('span', 'job-badge', `● ${activeJob.id}`));
+      if (activeJob) card.append(element('span', 'job-badge', `${control?.active.includes(item.number!) ? '●' : '○'} ${activeJob.id}`));
+      if (item.number) {
+        const settings = control?.state.agents[String(item.number)] ?? control?.defaults;
+        if (settings) card.append(element('span', 'agent-badge', `${settings.engine} · ${settings.model} · ${settings.effort}`));
+      }
       card.addEventListener('click', () => { selected = item; void showDetail(item); });
       section.append(card);
     }
@@ -109,6 +160,23 @@ async function showDetail(item: BoardItem): Promise<void> {
   head.append(close);
   drawer.append(head, element('h2', 'detail-title', item.title));
   document.body.append(drawer);
+  if (item.number) {
+    const card = item.number;
+    const controls = element('section', 'detail-section agent-controls');
+    controls.append(element('h3', '', 'Agent et pipeline'));
+    const settings = control?.state.agents[String(card)] ?? control?.defaults ?? { engine: 'codex', model: 'default', effort: 'medium' };
+    const engine = element('select') as HTMLSelectElement;
+    engine.append(new Option('Codex', 'codex'), new Option('Cursor', 'cursor')); engine.value = settings.engine;
+    const model = element('input') as HTMLInputElement; model.value = settings.model; model.placeholder = 'Modèle'; model.setAttribute('aria-label', 'Modèle');
+    const effort = element('input') as HTMLInputElement; effort.value = settings.effort; effort.placeholder = 'Effort'; effort.setAttribute('aria-label', 'Effort de raisonnement');
+    const save = element('button', 'small-button', 'Enregistrer');
+    action(save, () => window.agentBoard.setAgent(card, { engine: engine.value as 'codex' | 'cursor', model: model.value.trim(), effort: effort.value.trim() }));
+    const pause = element('button', 'small-button', control?.state.cards.includes(card) ? '▶ Reprendre la carte' : '❚❚ Pause carte');
+    action(pause, () => window.agentBoard.pause(!control?.state.cards.includes(card), { card }));
+    const launch = element('button', 'small-button', '▶ Lancer');
+    action(launch, () => window.agentBoard.launch(card));
+    controls.append(engine, model, effort, save, pause, launch); drawer.append(controls);
+  }
   if (!item.repository || !item.number || item.kind !== 'Issue') { drawer.append(element('p', 'muted', 'Détail disponible pour les issues GitHub.')); return; }
   drawer.append(element('p', 'muted', 'Chargement du détail…'));
   try {
@@ -161,7 +229,7 @@ async function showLog(drawer: HTMLElement, job: Job): Promise<void> {
 async function load(): Promise<void> {
   selected = undefined; stopTail(); board = undefined; render();
   try {
-    [board, jobs] = await Promise.all([window.agentBoard.board(), window.agentBoard.jobs()]);
+    [board, jobs, control] = await Promise.all([window.agentBoard.board(), window.agentBoard.jobs(), window.agentBoard.control()]);
     render();
   } catch (error) { root.replaceChildren(element('p', 'error', `Impossible de charger le projet : ${(error as Error).message}`)); }
 }

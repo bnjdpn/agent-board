@@ -12,5 +12,12 @@
       { "kind": "plain", "pattern": "RESULT*" }
     ]
   },
-  "launcher": { "command": "your-job-launcher", "args": ["<job>"] }
+  "agents": { "default": { "engine": "codex", "model": "default", "effort": "medium" } },
+  "control": {
+    "stateFile": "agent-board.state.json",
+    "holdFile": "~/agent-jobs/FILL_HOLD",
+    "readyColumns": ["Todo"],
+    "wip": { "Todo": 2, "In Progress": 3 }
+  },
+  "launcher": { "command": "your-job-launcher", "args": ["--card", "<card>", "--engine", "<engine>", "--model", "<model>", "--effort", "<effort>"] }
 }

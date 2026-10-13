@@ -4,3 +4,5 @@ out/
 .env
 *.local.json
 agent-board.config.local.*
+agent-board.state.json
+agent-board.state.json.lock/
