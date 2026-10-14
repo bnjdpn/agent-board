@@ -4,16 +4,16 @@ IMPORTANT: This file was signed by Sparkle. Any modifications to this file requi
     <channel>
         <title>Studio Control</title>
         <item>
-            <title>0.2.1</title>
-            <pubDate>Wed, 14 Oct 2026 11:37:54 +0200</pubDate>
-            <sparkle:version>3</sparkle:version>
-            <sparkle:shortVersionString>0.2.1</sparkle:shortVersionString>
+            <title>0.2.2</title>
+            <pubDate>Wed, 14 Oct 2026 11:40:38 +0200</pubDate>
+            <sparkle:version>4</sparkle:version>
+            <sparkle:shortVersionString>0.2.2</sparkle:shortVersionString>
             <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
             <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
-            <enclosure url="https://github.com/bnjdpn/agent-board/releases/download/studio-control-v0.2.1/Studio-Control-0.2.1-arm64.zip" length="2534225" type="application/octet-stream" sparkle:edSignature="TYyz0OFR2KCi9X6GHb7WWRXLcw2h6zzT57mwol/WfJmCN0xUw1D+OTPX57dfJGRylB1Y95LfFgLabNfz8ZzgBQ=="></enclosure>
+            <enclosure url="https://github.com/bnjdpn/agent-board/releases/download/studio-control-v0.2.2/Studio-Control-0.2.2-arm64.zip" length="2534702" type="application/octet-stream" sparkle:edSignature="fAAY++Ba5xb/wJH6rDamDVLX9+YeUGwP0UZGNINX7YusBYeGdTeOk0ngsgHeV148mimiqLxjR73La6quX7JjDA=="></enclosure>
         </item>
     </channel>
 </rss><!-- sparkle-signatures:
-edSignature: ijwCt/ZttmAiCW57dxCGAzh5Eg7FMMoVFZhVl7G0EaeHEslXUMAGhZ6XUQaMavYt3IGIspNYeEIdzEet0zuCCg==
+edSignature: TgwReTtl4EcgaBqdou8jiyAuhfhvKf4aSNK49elbU+dItchVKsMPeGyTSQzY2bOedns2u9sSq3BjGMepk9lSBg==
 length: 1154
 -->
