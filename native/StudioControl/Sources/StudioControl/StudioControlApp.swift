@@ -1,7 +1,24 @@
 import SwiftUI
 import AppKit
 
+final class StudioAppDelegate: NSObject, NSApplicationDelegate {
+    var reopen: (() -> Void)?
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        if !hasVisibleWindows { reopen?() }
+        return true
+    }
+}
+
+struct StudioScene: View {
+    @Environment(\.openWindow) private var openWindow
+    let delegate: StudioAppDelegate
+    var body: some View {
+        StudioWindow().onAppear { delegate.reopen = { openWindow(id: "studio") } }
+    }
+}
+
 @main struct StudioControlApp: App {
+    @NSApplicationDelegateAdaptor(StudioAppDelegate.self) private var delegate
     @StateObject private var model = StudioModel()
     init() {
         let args = CommandLine.arguments
@@ -26,7 +43,7 @@ import AppKit
     }
     var body: some Scene {
         Window("Studio Control", id: "studio") {
-            StudioWindow().environmentObject(model).task { model.start() }
+            StudioScene(delegate: delegate).environmentObject(model).task { model.start() }
         }.defaultSize(width: 1320, height: 860)
         MenuBarExtra {
             StudioMenu().environmentObject(model).task { model.start() }
@@ -97,7 +114,7 @@ struct StudioWindow: View {
                     Label("Vue d’ensemble", systemImage: "square.grid.2x2").tag("Vue d’ensemble")
                     Section("Flux de travail") {
                         ForEach(lanes, id: \.self) { name in
-                            HStack { Label(name, systemImage: symbol(name)); Spacer(); Text("\(model.cards.filter { $0.status == name }.count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary) }.tag(name)
+                            HStack { Label(name, systemImage: symbol(name)); Spacer(); Text(model.lastBoardRead == nil ? "—" : "\(model.cards.filter { $0.status == name }.count)").font(.caption.monospacedDigit()).foregroundStyle(.secondary) }.tag(name)
                         }
                     }
                 }.listStyle(.sidebar)
