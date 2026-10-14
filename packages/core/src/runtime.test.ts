@@ -47,6 +47,9 @@ describe('single runtime authority', () => {
       await expect(readFile(marker)).rejects.toThrow();
       await expect(controlRuntime(config, 'resume')).rejects.toThrow('security hold retained');
       expect((await readFile(marker, 'utf8')).trim()).toBe('once');
+      await writeFile(script, `#!/bin/sh\necho '{"observed_at":1,"holds":[],"missions":[],"unknown_sources":["board"]}'\nexit 1\n`, { mode: 0o700 });
+      expect(await wakeRuntime(config)).toEqual({ state: 'held', reasons: ['board'] });
+      await expect(controlRuntime(config, 'run')).rejects.toThrow('Départ bloqué');
       await writeFile(script, '#!/bin/sh\necho invalid\n', { mode: 0o700 });
       await expect(readRuntime(config)).rejects.toThrow();
     } finally { await rm(root, { recursive: true, force: true }); }

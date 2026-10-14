@@ -6,9 +6,20 @@ const execute = promisify(execFile);
 
 export async function readRuntime(config: Config): Promise<RuntimeStatus | null> {
   if (!config.controller) return null;
-  const { stdout } = await execute(config.controller.command, ['status', '--json'], { timeout: 30_000, maxBuffer: 8 * 1024 * 1024 });
+  let stdout: string;
+  let degraded = false;
+  try {
+    ({ stdout } = await execute(config.controller.command, ['status', '--json'], { timeout: 30_000, maxBuffer: 8 * 1024 * 1024 }));
+  } catch (error) {
+    const failure = error as Error & { code?: number; stdout?: string; killed?: boolean; signal?: string };
+    // Studio returns 1 with a valid diagnostic snapshot for unknown sources.
+    // This read-only result is a held state, never authorization to run.
+    if (failure.code !== 1 || failure.killed || failure.signal || !failure.stdout) throw error;
+    stdout = failure.stdout; degraded = true;
+  }
   const value = JSON.parse(stdout) as RuntimeStatus;
   if (!Number.isFinite(value.observed_at) || !Array.isArray(value.holds) || !Array.isArray(value.missions) || !Array.isArray(value.unknown_sources)) throw new Error('Invalid Studio Control status');
+  if (degraded && !value.unknown_sources.length) throw new Error('Unexplained Studio Control status failure');
   return value;
 }
 
