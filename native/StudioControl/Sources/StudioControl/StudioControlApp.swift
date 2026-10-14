@@ -118,7 +118,7 @@ struct StudioWindow: View {
                     }.padding(.horizontal, 26).padding(.bottom, 16)
                     ScrollView {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 245), spacing: 14)], spacing: 14) {
-                            ForEach(visible) { card in MissionCard(card: card, selected: model.selected?.id == card.id, running: model.runtime?.missions.contains { $0.issue == card.number && $0.running } == true) { model.select(card) } }
+                            ForEach(visible) { card in MissionCard(card: card, selected: model.selected?.id == card.id, running: model.active.contains { $0.issue == card.number }) { model.select(card) } }
                         }.padding(.horizontal, 26).padding(.bottom, 24)
                         if visible.isEmpty { ContentUnavailableView(search.isEmpty ? "Aucune mission dans cette vue" : "Aucun résultat", systemImage: "tray", description: Text(model.boardError == nil ? "Le backlog se remplit depuis les décisions de Studio CEO." : "Le board n’a pas pu être actualisé.")) }
                     }

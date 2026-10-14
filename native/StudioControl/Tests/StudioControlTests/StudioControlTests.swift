@@ -10,6 +10,16 @@ final class StudioControlTests: XCTestCase {
         XCTAssertEqual(result.missions[0].issue, 77)
         XCTAssertEqual(result.unknown_sources, ["jobs"])
     }
+    @MainActor func testUnavailableControllerCannotDisplayStaleActiveMission() throws {
+        let model = StudioModel()
+        let raw = #"{"observed_at":1,"holds":[],"missions":[{"issue":77,"executors":[{"pid":123,"alive":true}]}],"unknown_sources":[]}"#
+        model.runtime = try JSONDecoder().decode(Runtime.self, from: Data(raw.utf8))
+        XCTAssertEqual(model.active.count, 1)
+        model.runtimeError = "Source indisponible"
+        XCTAssertTrue(model.active.isEmpty)
+        XCTAssertEqual(model.stateTitle, "État inconnu")
+        XCTAssertFalse(model.canRun)
+    }
     func testBoardDecodesFrenchPriorityAndMissingFields() throws {
         let raw = #"{"items":[{"id":"a","title":"Test","priorité":"P1","status":"Prêt","content":{"number":17,"body":"test"}},{"id":"b","title":"Draft"}]}"#
         let result = try JSONDecoder().decode(BoardResponse.self, from: Data(raw.utf8))

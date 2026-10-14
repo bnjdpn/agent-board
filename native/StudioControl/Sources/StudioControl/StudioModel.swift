@@ -18,7 +18,7 @@ import SwiftUI
     private var didStart = false
     private var polling: Task<Void, Never>?
     private var logPolling: Task<Void, Never>?
-    var active: [Mission] { runtime?.missions.filter(\.running) ?? [] }
+    var active: [Mission] { runtimeError == nil ? runtime?.missions.filter(\.running) ?? [] : [] }
     var stateTitle: String {
         if runtimeError != nil || runtime == nil { return "État inconnu" }
         if runtime!.holds.contains(where: { $0.kind == "safety" }) { return "À vérifier" }
@@ -45,7 +45,7 @@ import SwiftUI
             let value = try JSONDecoder().decode(Runtime.self, from: result.data)
             runtime = value
             runtimeError = result.code == 0 && value.unknown_sources.isEmpty ? nil : "Certaines sources sont indisponibles. Les départs restent bloqués."
-        } catch { runtimeError = "Le contrôleur ne répond pas : \(error.localizedDescription)" }
+        } catch { runtime = nil; runtimeError = "Le contrôleur ne répond pas : \(error.localizedDescription)" }
     }
     func refreshBoard() async {
         do {
@@ -80,7 +80,7 @@ import SwiftUI
         isActing = true; actionMessage = nil; defer { isActing = false }
         do {
             let result = try await Commands.run(Commands.studio, args)
-            actionMessage = result.code == 0 ? (command == "resume" ? "Reprise autorisée. Le réveil automatique prendra le prochain ticket admissible." : "Commande confirmée.\n\(result.text)") : "Action non confirmée. Aucun nouvel essai automatique.\n\(result.text)"
+            actionMessage = result.code == 0 ? (command == "resume" ? "Reprise autorisée. Aucun ticket démarré par cette commande." : "Commande confirmée.\n\(result.text)") : "Action non confirmée. Aucun nouvel essai automatique.\n\(result.text)"
         } catch { actionMessage = "Action non confirmée : \(error.localizedDescription)" }
         await refreshRuntime()
     }
