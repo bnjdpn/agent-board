@@ -18,10 +18,10 @@ def run(args, **kwargs):
     return subprocess.run(args, cwd=ROOT, check=True, text=True, **kwargs)
 
 
-def api(path, payload=None, missing=False):
+def api(path, payload=None, missing=False, method=None):
     args = ['gh', 'api', path]
     if payload is not None:
-        args += ['--method', 'POST' if path.endswith('/git/refs') else 'PUT', '--input', '-']
+        args += ['--method', method or ('POST' if path.endswith('/git/refs') else 'PUT'), '--input', '-']
     result = subprocess.run(args, input=json.dumps(payload) if payload is not None else None,
                             cwd=ROOT, capture_output=True, text=True)
     if result.returncode:
@@ -76,7 +76,11 @@ def main():
     run(['gh', 'release', 'create', tag, str(archive), str(output / 'appcast.xml'), str(manifest),
          '--repo', REPO, '--target', sha, '--draft', '--title', 'Studio Control ' + version,
          '--notes-file', str(notes)])
-    run(['gh', 'release', 'edit', tag, '--repo', REPO, '--draft=false', '--latest=false'])
+    drafts = [release for release in api(f'repos/{REPO}/releases?per_page=100')
+              if release['tag_name'] == tag and release['draft'] and release['target_commitish'] == sha]
+    if len(drafts) != 1:
+        raise RuntimeError('Cannot identify the exact prepared draft; inspect before recovery')
+    api(f'repos/{REPO}/releases/{drafts[0]["id"]}', {'draft': False, 'make_latest': 'false'}, method='PATCH')
     ref = api(f'repos/{REPO}/git/ref/heads/{CHANNEL}', missing=True)
     if ref is None:
         api(f'repos/{REPO}/git/refs', {'ref': 'refs/heads/' + CHANNEL, 'sha': sha})

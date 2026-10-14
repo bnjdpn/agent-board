@@ -135,7 +135,7 @@ struct StudioWindow: View {
                     overview.padding(26)
                     HStack {
                         Text(lane ?? "Vue d’ensemble").font(.title2.weight(.semibold))
-                        Text("\(visible.count)").font(.callout.monospacedDigit()).foregroundStyle(.secondary)
+                        Text(model.lastBoardRead == nil ? "—" : "\(visible.count)").font(.callout.monospacedDigit()).foregroundStyle(.secondary)
                         Spacer()
                         if model.isRefreshing { ProgressView().controlSize(.small) }
                     }.padding(.horizontal, 26).padding(.bottom, 16)
@@ -149,7 +149,7 @@ struct StudioWindow: View {
                         if visible.isEmpty { ContentUnavailableView(search.isEmpty ? "Aucune mission dans cette vue" : "Aucun résultat", systemImage: "tray", description: Text(model.boardError == nil ? "Le backlog se remplit depuis les décisions de Studio CEO." : "Le board n’a pas pu être actualisé.")) }
                     }
                     }
-                    HStack { Circle().fill(model.boardError == nil ? Color.teal : .orange).frame(width: 5, height: 5); Text(model.lastBoardRead.map { "GitHub · actualisé à \($0.formatted(date: .omitted, time: .shortened))" } ?? "Connexion à GitHub…"); Spacer(); Text(model.wakeup).lineLimit(1) }.font(.caption2).foregroundStyle(.secondary).padding(14).background(.bar)
+                    HStack { Circle().fill(model.boardError == nil ? Color.teal : .orange).frame(width: 5, height: 5); Text(model.lastBoardRead.map { "GitHub · actualisé à \($0.formatted(date: .omitted, time: .shortened))" } ?? (model.boardError == nil ? "Connexion à GitHub…" : "GitHub indisponible")); Spacer(); Text(model.wakeup).lineLimit(1) }.font(.caption2).foregroundStyle(.secondary).padding(14).background(.bar)
                 }.frame(minWidth: 480)
                 if let card = model.selected { MissionDetail(card: card).frame(minWidth: 360, idealWidth: 440, maxWidth: 600) }
             }.background(Color(nsColor: .windowBackgroundColor))
@@ -183,7 +183,7 @@ struct StudioWindow: View {
                                         MissionCard(card: card, selected: model.selected?.id == card.id, running: model.active.contains { $0.issue == card.number }) { model.select(card) }
                                     }
                                     if cards.isEmpty {
-                                        Text(model.lastBoardRead == nil ? "Chargement…" : "Aucune mission").font(.caption).foregroundStyle(.tertiary).frame(maxWidth: .infinity).padding(.vertical, 30)
+                                        Text(model.lastBoardRead == nil ? (model.boardError == nil ? "Chargement…" : "Données indisponibles") : "Aucune mission").font(.caption).foregroundStyle(.tertiary).frame(maxWidth: .infinity).padding(.vertical, 30)
                                     }
                                 }.padding(.horizontal, 8).padding(.bottom, 12)
                             }
