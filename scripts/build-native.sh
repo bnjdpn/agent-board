@@ -4,7 +4,7 @@ ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 swift build -c release --package-path "$ROOT/native/StudioControl"
 OUT="$ROOT/native/out"
 APP="$OUT/Studio Control.app"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$OUT/StudioControl.iconset"
+mkdir -p "$APP/Contents/Frameworks" "$APP/Contents/MacOS" "$APP/Contents/Resources" "$OUT/StudioControl.iconset"
 cp "$ROOT/native/StudioControl/.build/release/StudioControl" "$APP/Contents/MacOS/StudioControl"
 swift "$ROOT/native/StudioControl/Icon.swift" "$OUT/icon.png"
 for size in 16 32 128 256 512; do
@@ -30,6 +30,15 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 <key>NSHighResolutionCapable</key><true/>
 </dict></plist>
 PLIST
+python3 - "$ROOT/native/StudioControl/release.json" "$APP/Contents/Info.plist" <<'PYCONFIG'
+import sys,json,plistlib
+c=json.load(open(sys.argv[1]));p=sys.argv[2]
+with open(p,'rb') as f: info=plistlib.load(f)
+info.update(CFBundleShortVersionString=c['version'],CFBundleVersion=str(c['build']),SUFeedURL=c['feedURL'],SUPublicEDKey=c['publicKey'],SUEnableAutomaticChecks=True,SUAutomaticallyUpdate=False,SURequireSignedFeed=True,SUVerifyUpdateBeforeExtraction=True,SUSendProfileInfo=False)
+with open(p,'wb') as f: plistlib.dump(info,f)
+PYCONFIG
+SPARKLE="$ROOT/native/StudioControl/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
+ditto "$SPARKLE" "$APP/Contents/Frameworks/Sparkle.framework"
 codesign --force --sign - "$APP"
-codesign --verify --strict "$APP"
+codesign --verify --deep --strict "$APP"
 printf '%s\n' "$APP"

@@ -16,6 +16,7 @@ import SwiftUI
     @Published var wakeup = "Réveil automatique non installé"
     @Published var lastBoardRead: Date?
     private var didStart = false
+    private var nextBoardRead = Date.distantPast
     private var polling: Task<Void, Never>?
     private var logPolling: Task<Void, Never>?
     var active: [Mission] { runtimeError == nil ? runtime?.missions.filter(\.running) ?? [] : [] }
@@ -30,12 +31,12 @@ import SwiftUI
     var selectedMission: Mission? { runtime?.missions.first { $0.issue != nil && $0.issue == selected?.number } }
     func start() {
         guard !didStart else { return }; didStart = true
-        polling = Task { while !Task.isCancelled { await refresh(); try? await Task.sleep(for: .seconds(30)) } }
+        polling = Task { while !Task.isCancelled { await refresh(forceBoard: false); try? await Task.sleep(for: .seconds(30)) } }
     }
-    func refresh() async {
+    func refresh(forceBoard: Bool = true) async {
         guard !isRefreshing else { return }; isRefreshing = true; defer { isRefreshing = false }
         async let state: Void = refreshRuntime()
-        async let board: Void = refreshBoard()
+        async let board: Void = refreshBoard(force: forceBoard)
         _ = await (state, board)
         await refreshWakeup()
     }
@@ -47,13 +48,15 @@ import SwiftUI
             runtimeError = result.code == 0 && value.unknown_sources.isEmpty ? nil : "Certaines sources sont indisponibles. Les départs restent bloqués."
         } catch { runtime = nil; runtimeError = "Le contrôleur ne répond pas : \(error.localizedDescription)" }
     }
-    func refreshBoard() async {
+    func refreshBoard(force: Bool = true) async {
+        guard force || Date() >= nextBoardRead else { return }
+        nextBoardRead = Date().addingTimeInterval(300)
         do {
             let result = try await Commands.run(Commands.github(), ["project", "item-list", "1", "--owner", "bnjdpn", "--limit", "1000", "--format", "json"], timeout: 90)
             guard result.code == 0 else { throw CommandFailure(message: result.text) }
             cards = try JSONDecoder().decode(BoardResponse.self, from: result.data).items
             lastBoardRead = Date(); boardError = nil
-        } catch { boardError = "GitHub indisponible. \(cards.isEmpty ? "" : "Le dernier board reste affiché.") \(error.localizedDescription)" }
+        } catch { nextBoardRead = Date().addingTimeInterval(900); boardError = "GitHub indisponible. \(cards.isEmpty ? "" : "Le dernier board reste affiché.") \(error.localizedDescription)" }
     }
     func refreshWakeup() async {
         let root = Commands.home.appendingPathComponent("Library/Application Support/agent-board/studio-runtime")

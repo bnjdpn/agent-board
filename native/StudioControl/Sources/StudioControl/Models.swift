@@ -27,9 +27,9 @@ struct Runtime: Decodable {
 struct BoardResponse: Decodable { let items: [Card] }
 struct Card: Decodable, Identifiable, Hashable {
     let id: String; let title: String; let status: String?; let app: String?
-    let priority: String?; let content: Content?
+    let priority: String?; let content: Content?; let labels: [String]?; let engine: String?
     struct Content: Decodable, Hashable { let number: Int?; let url: String?; let body: String?; let repository: String? }
-    enum CodingKeys: String, CodingKey { case id, title, status, app, content; case priority = "priorité" }
+    enum CodingKeys: String, CodingKey { case id, title, status, app, content, labels; case priority = "priorité"; case engine = "moteur" }
     var number: Int? { content?.number }
 }
 struct LocalLog: Identifiable, Hashable { let path: String; var id: String { path }; var name: String { URL(fileURLWithPath: path).lastPathComponent } }

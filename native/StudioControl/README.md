@@ -24,13 +24,32 @@ Le paquet signé localement est produit dans `native/out/Studio Control.app`. La
 ```sh
 studio status --json > /tmp/studio-control-status.json
 gh project item-list 1 --owner bnjdpn --limit 1000 --format json > /tmp/studio-control-board.json
-native/StudioControl/.build/release/StudioControl --snapshot /tmp/studio-control.png /tmp/studio-control-status.json /tmp/studio-control-board.json
+'native/out/Studio Control.app/Contents/MacOS/StudioControl' --snapshot /tmp/studio-control.png /tmp/studio-control-status.json /tmp/studio-control-board.json
 ```
 
 Ce rendu hors écran est une preuve de mise en page, pas une preuve d’interaction avec la barre de menus. Les actions réelles doivent être qualifiées avec le contrôleur, en conservant les holds existants jusqu’à la réconciliation des anciennes exécutions.
 
 ## Périmètre actuel
 
-Le Project et les chemins Studio sont volontairement dédiés à ce Mac. Le board est relu toutes les 30 secondes, les journaux sélectionnés chaque seconde (derniers 128 Ko). Les sources indisponibles sont signalées et empêchent le bouton d’exécution. Les logs peuvent provenir des runs déclarés par le contrôleur ou des archives identifiées par ticket ; aucun texte de ticket n’est exécuté par l’interface.
+Le Project et les chemins Studio sont volontairement dédiés à ce Mac. Le contrôleur est relu toutes les 30 secondes et le board toutes les 5 minutes (15 minutes après erreur, actualisation manuelle possible), les journaux sélectionnés chaque seconde (derniers 128 Ko). Les sources indisponibles sont signalées et empêchent le bouton d’exécution. Les logs peuvent provenir des runs déclarés par le contrôleur ou des archives identifiées par ticket ; aucun texte de ticket n’est exécuté par l’interface.
 
 Le réveil déterministe optionnel se construit depuis le core TypeScript (`scripts/install-studio-wakeup.py`). Cette dépendance n’introduit pas de WebView ou d’Electron dans l’application native.
+
+## Vue d’ensemble
+
+Le Kanban suit six étapes : Prêt, En cours, Relecture, À livrer, En validation store et Terminé. Chaque colonne défile verticalement, le board horizontalement. Un clic conserve l’accès au détail et aux journaux. Idées et À cadrer restent accessibles dans la barre latérale. Le board reflète GitHub ; aucun glisser-déposer ne change implicitement une autorisation d’exécution ou de livraison.
+
+## Mises à jour GitHub
+
+Sparkle 2.10.0 vérifie le flux signé déclaré dans `release.json`. La commande « Rechercher des mises à jour… » figure dans le menu de l’app et le panneau de barre de menus. La recherche est automatique, l’installation reste proposée par Sparkle. Le contrôleur et ses missions tournent dans un processus distinct.
+
+Les archives sont hébergées dans les Releases `studio-control-vVERSION` de `bnjdpn/agent-board`. Le flux est sur la branche dédiée `studio-control-updates`, séparée des releases Electron. La clé privée EdDSA reste dans le trousseau de ce Mac, compte `studio-control` ; seule la clé publique est versionnée. Ne jamais exporter la clé dans le dépôt ou les logs.
+
+Après incrément de `version` et `build` dans `release.json` :
+
+```sh
+scripts/release-native.py            # préparer et signer, sans publier
+scripts/release-native.py --publish  # source propre, revue et déjà poussée
+```
+
+Chaque préparation utilise un nouveau dossier pour empêcher la réutilisation d’un ancien appcast. Le script refuse de remplacer une release existante. Après un échec de publication, inspecter la release et le flux avant toute reprise. Les signatures Sparkle authentifient l’archive et le flux ; elles ne constituent pas une notarisation Apple. Cette distribution personnelle est actuellement signée ad hoc, pour Apple Silicon.

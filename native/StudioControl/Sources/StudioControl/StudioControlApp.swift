@@ -20,6 +20,7 @@ struct StudioScene: View {
 @main struct StudioControlApp: App {
     @NSApplicationDelegateAdaptor(StudioAppDelegate.self) private var delegate
     @StateObject private var model = StudioModel()
+    @StateObject private var updates = StudioUpdates()
     init() {
         let args = CommandLine.arguments
         if let index = args.firstIndex(of: "--snapshot"), args.count > index + 3 {
@@ -43,10 +44,11 @@ struct StudioScene: View {
     }
     var body: some Scene {
         Window("Studio Control", id: "studio") {
-            StudioScene(delegate: delegate).environmentObject(model).task { model.start() }
+            StudioScene(delegate: delegate).environmentObject(model).task { model.start(); updates.start() }
         }.defaultSize(width: 1320, height: 860)
+        .commands { CommandGroup(after: .appInfo) { StudioUpdateButton(updates: updates) } }
         MenuBarExtra {
-            StudioMenu().environmentObject(model).task { model.start() }
+            StudioMenu(updates: updates).environmentObject(model).task { model.start(); updates.start() }
         } label: {
             Image(systemName: "square.stack.3d.up.fill")
                 .accessibilityLabel("Studio Control — \(model.stateTitle)")
@@ -55,6 +57,7 @@ struct StudioScene: View {
 }
 
 struct StudioMenu: View {
+    @ObservedObject var updates: StudioUpdates
     @EnvironmentObject var model: StudioModel
     @Environment(\.openWindow) var openWindow
     var body: some View {
@@ -79,6 +82,8 @@ struct StudioMenu: View {
             if model.isActing { ProgressView("Application de la commande…").controlSize(.small) }
             if let message = model.actionMessage { Text(message).font(.caption).lineLimit(5).textSelection(.enabled) }
             Divider()
+            StudioUpdateButton(updates: updates)
+            Text("Version \(updates.version)").font(.caption2).foregroundStyle(.secondary)
             Button("Quitter l’interface") { NSApp.terminate(nil) }.font(.caption).foregroundStyle(.secondary)
             Text("Fermer l’interface ne met pas les missions en pause.").font(.caption2).foregroundStyle(.tertiary)
         }.padding(22).frame(width: 330)
@@ -99,10 +104,11 @@ struct StudioWindow: View {
     @State private var lane: String? = "Vue d’ensemble"
     @State private var search = ""
     private let lanes = ["Prêt", "En cours", "Relecture", "À livrer", "En validation store", "À cadrer", "Idées", "Terminé"]
+    private let flow = ["Prêt", "En cours", "Relecture", "À livrer", "En validation store", "Terminé"]
     var visible: [Card] {
         model.cards.filter { card in
             let selected = lane ?? "Vue d’ensemble"
-            let inLane = selected == "Vue d’ensemble" ? ["En cours", "Relecture", "À livrer", "En validation store"].contains(card.status ?? "") : card.status == selected
+            let inLane = selected == "Vue d’ensemble" ? flow.contains(card.status ?? "") : card.status == selected
             return inLane && (search.isEmpty || card.title.localizedCaseInsensitiveContains(search) || card.app?.localizedCaseInsensitiveContains(search) == true || String(card.number ?? 0).contains(search))
         }
     }
@@ -133,11 +139,15 @@ struct StudioWindow: View {
                         Spacer()
                         if model.isRefreshing { ProgressView().controlSize(.small) }
                     }.padding(.horizontal, 26).padding(.bottom, 16)
+                    if lane == "Vue d’ensemble" || lane == nil {
+                        kanban
+                    } else {
                     ScrollView {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 245), spacing: 14)], spacing: 14) {
                             ForEach(visible) { card in MissionCard(card: card, selected: model.selected?.id == card.id, running: model.active.contains { $0.issue == card.number }) { model.select(card) } }
                         }.padding(.horizontal, 26).padding(.bottom, 24)
                         if visible.isEmpty { ContentUnavailableView(search.isEmpty ? "Aucune mission dans cette vue" : "Aucun résultat", systemImage: "tray", description: Text(model.boardError == nil ? "Le backlog se remplit depuis les décisions de Studio CEO." : "Le board n’a pas pu être actualisé.")) }
+                    }
                     }
                     HStack { Circle().fill(model.boardError == nil ? Color.teal : .orange).frame(width: 5, height: 5); Text(model.lastBoardRead.map { "GitHub · actualisé à \($0.formatted(date: .omitted, time: .shortened))" } ?? "Connexion à GitHub…"); Spacer(); Text(model.wakeup).lineLimit(1) }.font(.caption2).foregroundStyle(.secondary).padding(14).background(.bar)
                 }.frame(minWidth: 480)
@@ -153,6 +163,35 @@ struct StudioWindow: View {
                 }
             }.disabled(model.isActing)
         }.tint(.teal)
+    }
+    var kanban: some View {
+        GeometryReader { geometry in
+            ScrollView(.horizontal) {
+                HStack(alignment: .top, spacing: 14) {
+                    ForEach(flow, id: \.self) { column in
+                        let cards = visible.filter { $0.status == column }
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 8) {
+                                Image(systemName: symbol(column)).foregroundStyle(column == "En cours" ? Color.teal : .secondary)
+                                Text(column).font(.callout.weight(.semibold))
+                                Spacer()
+                                Text(model.lastBoardRead == nil ? "—" : String(cards.count)).font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+                            }.padding(.horizontal, 12).padding(.top, 14)
+                            ScrollView {
+                                LazyVStack(spacing: 10) {
+                                    ForEach(cards) { card in
+                                        MissionCard(card: card, selected: model.selected?.id == card.id, running: model.active.contains { $0.issue == card.number }) { model.select(card) }
+                                    }
+                                    if cards.isEmpty {
+                                        Text(model.lastBoardRead == nil ? "Chargement…" : "Aucune mission").font(.caption).foregroundStyle(.tertiary).frame(maxWidth: .infinity).padding(.vertical, 30)
+                                    }
+                                }.padding(.horizontal, 8).padding(.bottom, 12)
+                            }
+                        }.frame(width: 280).background(.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 16))
+                    }
+                }.frame(height: max(180, geometry.size.height - 14)).padding(.horizontal, 26)
+            }
+        }
     }
     var overview: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -190,8 +229,11 @@ struct MissionCard: View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 12) {
                 HStack { Text(card.app ?? "Studio").font(.caption.weight(.semibold)).foregroundStyle(.teal); Spacer(); Text(card.priority ?? "").font(.caption2.weight(.bold)).foregroundStyle(.secondary) }
+                if card.labels?.contains(where: { ["bloqué", "blocked", "needs-ceo"].contains($0.lowercased()) }) == true {
+                    Label("Bloquée", systemImage: "exclamationmark.circle").font(.caption2).foregroundStyle(.orange)
+                }
                 Text(card.title).font(.system(size: 14, weight: .medium)).lineLimit(3).frame(maxWidth: .infinity, alignment: .leading).frame(minHeight: 52, alignment: .top)
-                HStack { Text(card.number.map { "#\($0)" } ?? "Brouillon").monospacedDigit(); Spacer(); if running { Circle().fill(.teal).frame(width: 5, height: 5); Text("Agent actif").foregroundStyle(.teal) } else { Text(card.status ?? "Non classé") } }.font(.caption2).foregroundStyle(.secondary)
+                HStack { Text(card.number.map { "#\($0)" } ?? "Brouillon").monospacedDigit(); Spacer(); if running { Circle().fill(.teal).frame(width: 5, height: 5); Text(card.engine.map { "\($0.capitalized) actif" } ?? "Agent actif").foregroundStyle(.teal) } else { Text(card.status ?? "Non classé") } }.font(.caption2).foregroundStyle(.secondary)
             }.padding(18).background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 14))
                 .overlay(RoundedRectangle(cornerRadius: 14).strokeBorder(selected ? Color.teal : .primary.opacity(0.07), lineWidth: selected ? 2 : 1))
         }.buttonStyle(.plain)
