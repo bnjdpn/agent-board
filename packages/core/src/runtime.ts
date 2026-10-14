@@ -27,6 +27,10 @@ export function runtimeArguments(action: RuntimeAction, issue?: number): string[
 export async function controlRuntime(config: Config, action: RuntimeAction, issue?: number): Promise<string> {
   if (!config.controller) throw new Error('No runtime controller configured');
   const args = runtimeArguments(action, issue);
+  if (action === 'run') {
+    const state = await readRuntime(config);
+    if (!state || state.holds.length || state.unknown_sources.length) throw new Error('Départ bloqué : suspension ou sources inconnues');
+  }
   try {
     const { stdout } = await execute(config.controller.command, args, { timeout: 120_000, maxBuffer: 4 * 1024 * 1024 });
     return stdout.trim();

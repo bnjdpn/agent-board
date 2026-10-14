@@ -43,6 +43,7 @@ describe('single runtime authority', () => {
       const config: Config = { ...base, controller: { kind: 'studio', command: script } };
       expect((await readRuntime(config))?.holds[0]?.reason).toBe('NO-GO');
       expect(await wakeRuntime(config)).toEqual({ state: 'held', reasons: ['NO-GO'] });
+      await expect(controlRuntime(config, 'run')).rejects.toThrow('Départ bloqué');
       await expect(readFile(marker)).rejects.toThrow();
       await expect(controlRuntime(config, 'resume')).rejects.toThrow('security hold retained');
       expect((await readFile(marker, 'utf8')).trim()).toBe('once');

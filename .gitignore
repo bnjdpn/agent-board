@@ -6,3 +6,9 @@ out/
 agent-board.config.local.*
 agent-board.state.json
 agent-board.state.json.lock/
+
+# Native SwiftPM build outputs
+native/**/.build/
+native/**/.swiftpm/
+native/out/
+**/__pycache__/

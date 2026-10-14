@@ -66,7 +66,7 @@ function render(): void {
     const actions = element('div', 'runtime-actions');
     for (const [label, command] of [['Pause des départs', 'pause'], ['Reprendre', 'resume'], ['Arrêter les missions', 'stop'], ['Exécuter le prochain ticket', 'run']] as const) {
       const button = element('button', 'small-button', label);
-      button.disabled = runtimeBusy || (!!runtimeError && command !== 'pause' && command !== 'stop') || (command === 'run' && !!runtime?.holds.length);
+      button.disabled = runtimeBusy || (!!runtimeError && command !== 'pause' && command !== 'stop') || (command === 'run' && (!!runtime?.holds.length || !!runtime?.unknown_sources.length));
       button.addEventListener('click', () => { void runtimeAction(command); });
       actions.append(button);
     }
