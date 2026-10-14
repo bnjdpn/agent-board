@@ -205,6 +205,7 @@ struct StudioWindow: View {
                 Metric(title: "Prêtes", value: model.lastBoardRead == nil ? "—" : String(model.cards.filter { $0.status == "Prêt" }.count), icon: "tray.full", color: .blue)
                 Metric(title: "À livrer", value: model.lastBoardRead == nil ? "—" : String(model.cards.filter { $0.status == "À livrer" }.count), icon: "shippingbox", color: .purple)
             }
+            if let next = model.nextBoardRead, next > Date() { Text("Prochaine lecture GitHub à \(next.formatted(date: .omitted, time: .shortened))").font(.caption2).foregroundStyle(.secondary) }
             if let error = model.runtimeError ?? model.boardError { Label(error, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.orange).textSelection(.enabled) }
             if let runtime = model.runtime, !runtime.holds.isEmpty {
                 DisclosureGroup {

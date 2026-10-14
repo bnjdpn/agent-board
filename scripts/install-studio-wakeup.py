@@ -36,8 +36,8 @@ const temp = new URL('heartbeat.' + process.pid + '.tmp', root);
 await writeFile(temp, JSON.stringify(receipt, null, 2) + '\\n', { mode: 0o600 });
 await rename(temp, target);
 '''
-manifest={'Label':'dev.agentboard.studio-wakeup','ProgramArguments':[node,str(root/'wake.mjs')], 'StartInterval':60,'RunAtLoad':True,'ProcessType':'Background','EnvironmentVariables':{'PATH':os.environ.get('PATH','/usr/bin:/bin')},'StandardErrorPath':str(root/'stderr.log')}
-print(json.dumps({'root':str(root),'plist':str(plist),'interval_seconds':60,'controller':str(controller),'install':a.install},indent=2))
+manifest={'Label':'dev.agentboard.studio-wakeup','ProgramArguments':[node,str(root/'wake.mjs')], 'StartInterval':300,'RunAtLoad':True,'ProcessType':'Background','EnvironmentVariables':{'PATH':os.environ.get('PATH','/usr/bin:/bin')},'StandardErrorPath':str(root/'stderr.log')}
+print(json.dumps({'root':str(root),'plist':str(plist),'interval_seconds':300,'controller':str(controller),'install':a.install},indent=2))
 if not a.install: raise SystemExit(0)
 if plist.exists(): raise SystemExit('Existing service: inspect and unload explicitly before replacing')
 root.mkdir(parents=True,exist_ok=True)

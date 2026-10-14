@@ -31,7 +31,7 @@ Ce rendu hors écran est une preuve de mise en page, pas une preuve d’interact
 
 ## Périmètre actuel
 
-Le Project et les chemins Studio sont volontairement dédiés à ce Mac. Le contrôleur est relu toutes les 30 secondes et le board toutes les 5 minutes (15 minutes après erreur, actualisation manuelle possible), les journaux sélectionnés chaque seconde (derniers 128 Ko). Les sources indisponibles sont signalées et empêchent le bouton d’exécution. Les logs peuvent provenir des runs déclarés par le contrôleur ou des archives identifiées par ticket ; aucun texte de ticket n’est exécuté par l’interface.
+Le Project et les chemins Studio sont volontairement dédiés à ce Mac. Le contrôleur est relu toutes les 30 secondes et le board au plus toutes les 15 minutes (une heure après erreur). Ce budget persiste après redémarrage et s’applique aussi au bouton Actualiser. Un cache privé conserve le dernier relevé et sa date, les journaux sélectionnés chaque seconde (derniers 128 Ko). Les sources indisponibles sont signalées et empêchent le bouton d’exécution. Les logs peuvent provenir des runs déclarés par le contrôleur ou des archives identifiées par ticket ; aucun texte de ticket n’est exécuté par l’interface.
 
 Le réveil déterministe optionnel se construit depuis le core TypeScript (`scripts/install-studio-wakeup.py`). Cette dépendance n’introduit pas de WebView ou d’Electron dans l’application native.
 
@@ -53,3 +53,5 @@ scripts/release-native.py --publish  # source propre, revue et déjà poussée
 ```
 
 Chaque préparation utilise un nouveau dossier pour empêcher la réutilisation d’un ancien appcast. Le script refuse de remplacer une release existante. Après un échec de publication, inspecter la release et le flux avant toute reprise. Les signatures Sparkle authentifient l’archive et le flux ; elles ne constituent pas une notarisation Apple. Cette distribution personnelle est actuellement signée ad hoc, pour Apple Silicon.
+
+Le service de réveil vérifie l’admission toutes les cinq minutes. Sous suspension, il ne contacte pas GitHub : seules les lectures locales sont faites. Une fois autorisé, le sélecteur existant reste responsable de ses lectures et écritures GitHub ; la limite de la console ne prétend pas couvrir les agents, Grok ou les autres outils.

@@ -16,7 +16,8 @@ import SwiftUI
     @Published var wakeup = "Réveil automatique non installé"
     @Published var lastBoardRead: Date?
     private var didStart = false
-    private var nextBoardRead = Date.distantPast
+    private let boardCache = BoardCache()
+    @Published var nextBoardRead: Date?
     private var polling: Task<Void, Never>?
     private var logPolling: Task<Void, Never>?
     var active: [Mission] { runtimeError == nil ? runtime?.missions.filter(\.running) ?? [] : [] }
@@ -49,14 +50,32 @@ import SwiftUI
         } catch { runtime = nil; runtimeError = "Le contrôleur ne répond pas : \(error.localizedDescription)" }
     }
     func refreshBoard(force: Bool = true) async {
-        guard force || Date() >= nextBoardRead else { return }
-        nextBoardRead = Date().addingTimeInterval(300)
+        // Manual refresh uses the same persisted budget; force only refreshes local state.
         do {
-            let result = try await Commands.run(Commands.github(), ["project", "item-list", "1", "--owner", "bnjdpn", "--limit", "1000", "--format", "json"], timeout: 90)
-            guard result.code == 0 else { throw CommandFailure(message: result.text) }
-            cards = try JSONDecoder().decode(BoardResponse.self, from: result.data).items
-            lastBoardRead = Date(); boardError = nil
-        } catch { nextBoardRead = Date().addingTimeInterval(900); boardError = "GitHub indisponible. \(cards.isEmpty ? "" : "Le dernier board reste affiché.") \(error.localizedDescription)" }
+            let cached = try boardCache.read()
+            if let data = cached.payload, let date = cached.fetchedAt, lastBoardRead == nil || date > lastBoardRead! {
+                cards = try JSONDecoder().decode(BoardResponse.self, from: data).items
+                lastBoardRead = date
+            }
+            nextBoardRead = cached.nextRead
+            boardError = cached.error
+            guard try boardCache.begin() else { return }
+            do {
+                let result = try await Commands.run(Commands.github(), ["project", "item-list", "1", "--owner", "bnjdpn", "--limit", "1000", "--format", "json"], timeout: 90)
+                guard result.code == 0 else { throw CommandFailure(message: result.text) }
+                let decoded = try JSONDecoder().decode(BoardResponse.self, from: result.data)
+                try boardCache.success(result.data)
+                cards = decoded.items; lastBoardRead = Date(); boardError = nil
+            } catch {
+                let message = "GitHub indisponible. Dernier relevé conservé ; nouvel essai au plus tôt dans une heure."
+                try boardCache.failure(message)
+                boardError = message
+            }
+            nextBoardRead = try boardCache.read().nextRead
+        } catch {
+            boardCache.finish()
+            boardError = "Cache GitHub indisponible : aucune requête envoyée. \(error.localizedDescription)"
+        }
     }
     func refreshWakeup() async {
         let root = Commands.home.appendingPathComponent("Library/Application Support/agent-board/studio-runtime")
@@ -67,8 +86,8 @@ import SwiftUI
               let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let stamp = value["at"] as? String,
               let date = ISO8601DateFormatter.fractional.date(from: stamp) else { return }
-        if Date().timeIntervalSince(date) > 180 { wakeup = "Réveil automatique sans signal récent" }
-        else { wakeup = value["state"] as? String == "held" ? "Réveil actif · attend la levée des suspensions" : "Réveil actif · vérification chaque minute" }
+        if Date().timeIntervalSince(date) > 900 { wakeup = "Réveil automatique sans signal récent" }
+        else { wakeup = value["state"] as? String == "held" ? "Réveil actif · attend la levée des suspensions" : "Réveil actif · vérification toutes les 5 minutes" }
     }
     func act(_ command: String, issue: Int? = nil) async {
         guard !isActing else { return }

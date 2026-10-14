@@ -1,6 +1,6 @@
 {
-  "version": "0.2.2",
-  "build": 4,
+  "version": "0.2.3",
+  "build": 5,
   "feedURL": "https://raw.githubusercontent.com/bnjdpn/agent-board/studio-control-updates/appcast.xml",
   "publicKey": "9jdLgbfyzSQQKb5vf8DrEvehTAECFXTO87BBUqHjI1U="
 }
