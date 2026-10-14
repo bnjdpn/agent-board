@@ -90,7 +90,7 @@ no model. Existing standalone configurations retain their original behavior.
 ### Optional Mac wake-up
 
 `python3 scripts/install-studio-wakeup.py` previews installation;
-`--install` installs one launchd wake-up every 60 seconds and at login.
+`--install` installs one launchd wake-up every five minutes and at login.
 It copies the built controller adapter, never calls an LLM for observation,
 and asks the existing Studio selector for at most one admission when no hold
 is present. Completion handling remains in Studio. It runs with the app closed.
