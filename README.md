@@ -67,3 +67,37 @@ The tag-only `.github/workflows/release.yml` builds macOS assets and attaches th
 ## License
 
 MIT
+
+## Studio Control integration
+
+For Studio, use `examples/studio/agent-board.config.json`. The optional
+`controller: { "kind": "studio", "command": "~/.local/bin/studio" }` delegates
+operator actions to the installed Studio CLI. The console displays live process
+observations and suspension reasons. Pause stops admissions; Stop interrupts
+owned missions; Resume reconciles state and preserves security holds. Resume
+does not launch a job. “Execute next ticket” asks the existing selector for one
+bounded admission. This version does not install a background dispatcher.
+
+With a controller configured, local agent overrides, WIP, dragging cards and
+legacy launch/dispatch/pause mutations are disabled. The controller and GitHub
+remain authoritative; no second execution queue is created. A failed action is
+reported as unconfirmed and is never retried automatically.
+
+CLI: `agent-board --config FILE runtime status`, `runtime pause`, `runtime stop
+--card 123`, `runtime resume --card 123`, `runtime run`. Read-only status invokes
+no model. Existing standalone configurations retain their original behavior.
+
+### Optional Mac wake-up
+
+`python3 scripts/install-studio-wakeup.py` previews installation;
+`--install` installs one launchd wake-up every 60 seconds and at login.
+It copies the built controller adapter, never calls an LLM for observation,
+and asks the existing Studio selector for at most one admission when no hold
+is present. Completion handling remains in Studio. It runs with the app closed.
+The current Studio security/operator holds are preserved. A failed or ambiguous
+invocation latches `attention.json` and prevents automatic retries; diagnose the
+cause and reconcile Studio before removing that file. `heartbeat.json` records
+the latest result in `~/Library/Application Support/agent-board/studio-runtime/`.
+Uninstall with `launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/dev.agentboard.studio-wakeup.plist`
+and then remove that exact plist; retain the runtime directory for diagnosis.
+No service is installed by building or launching the GUI.

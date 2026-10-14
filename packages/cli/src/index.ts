@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { setTimeout as delay } from 'node:timers/promises';
-import { activeCards, agentFor, clearRequeued, findJob, launchCard, listJobs, loadConfig, moveCard, readBoard, readControl, setAgent, setDefaultAgent, setPause, setWip, showCard, tailJob, type BoardItem } from '@agent-board/core';
+import { readRuntime, controlRuntime, type RuntimeAction, activeCards, agentFor, clearRequeued, findJob, launchCard, listJobs, loadConfig, moveCard, readBoard, readControl, setAgent, setDefaultAgent, setPause, setWip, showCard, tailJob, type BoardItem } from '@agent-board/core';
 
 function option(args: string[], flag: string): string | undefined {
   const index = args.indexOf(flag);
@@ -30,6 +30,15 @@ async function main(): Promise<void> {
   if (configPath) args.splice(args.indexOf('--config'), 2);
   const command = args.shift() ?? 'board';
   const config = await loadConfig(configPath);
+  if (command === 'runtime') {
+    const action = args.shift() ?? 'status';
+    const issue = option(args, '--card');
+    if (action === 'status') process.stdout.write(JSON.stringify(await readRuntime(config), null, 2) + '\n');
+    else if (['pause', 'resume', 'stop', 'run'].includes(action)) process.stdout.write(await controlRuntime(config, action as RuntimeAction, issue ? cardNumber(issue) : undefined) + '\n');
+    else usage();
+    return;
+  }
+  if (command === 'move' && config.controller) throw new Error('Managed board: change the mission in GitHub');
   if (command === 'move') {
     const number = cardNumber(args.shift());
     const column = args.join(' ');

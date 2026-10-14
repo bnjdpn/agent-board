@@ -1,8 +1,10 @@
-import type { AgentSettings, Board, ControlState, IssueDetail, Job, LogEntry } from '@agent-board/core';
+import type { RuntimeStatus, RuntimeAction, AgentSettings, Board, ControlState, IssueDetail, Job, LogEntry } from '@agent-board/core';
 
 declare global {
   interface Window {
     agentBoard: {
+      runtime(): Promise<RuntimeStatus | null>;
+      runtimeAction(action: RuntimeAction, issue?: number): Promise<string>;
       board(): Promise<Board>;
       jobs(): Promise<Job[]>;
       control(): Promise<{ state: ControlState; defaults: AgentSettings; limits: Record<string, number>; active: number[] }>;

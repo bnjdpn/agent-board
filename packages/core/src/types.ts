@@ -2,6 +2,7 @@ export interface Config {
   github: { owner: string; projectNumber: number };
   board: { statusField: string; columns: string[]; filterFields: string[] };
   jobs: { directory: string; cardPattern?: string; adapters: LogAdapter[] };
+  controller?: { kind: 'studio'; command: string };
   launcher?: { command: string; args: string[] };
   agents?: { default: AgentSettings };
   control?: { stateFile?: string; holdFile?: string; readyColumns?: string[]; activeColumns?: string[]; wip?: Record<string, number> };
@@ -37,3 +38,12 @@ export interface IssueDetail {
 }
 export interface Job { id: string; path: string; cardNumber?: number; modifiedAt: number }
 export interface LogEntry { file: string; text: string }
+
+export interface RuntimeStatus {
+  observed_at: number;
+  holds: { kind: string; reason: string }[];
+  missions: { issue?: number; step?: string; wait_reasons: string[]; executors: { pid: number; alive: boolean | null; ownership_verified: boolean; engine?: string; run?: string }[] }[];
+  unknown_sources: string[];
+  registered_jobs_count: number | null;
+}
+export type RuntimeAction = 'pause' | 'resume' | 'stop' | 'run';

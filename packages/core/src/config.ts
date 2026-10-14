@@ -18,6 +18,10 @@ export async function loadConfig(path = process.env.AGENT_BOARD_CONFIG ?? 'agent
   for (const adapter of config.jobs.adapters) {
     if (!['transcript', 'jsonl', 'plain'].includes(adapter.kind) || !adapter.pattern || adapter.pattern.includes('/')) throw new Error('Invalid log adapter');
   }
+  if (config.controller) {
+    if (config.controller.kind !== 'studio' || !config.controller.command) throw new Error('Invalid controller');
+    config.controller.command = expandPath(config.controller.command);
+  }
   const settings = config.agents?.default;
   if (settings && (!['codex', 'cursor'].includes(settings.engine) || !settings.model || !settings.effort)) throw new Error('Invalid agents.default');
   for (const [column, limit] of Object.entries(config.control?.wip ?? {})) {

@@ -1,7 +1,7 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { activeCards, findJob, launchCard, listJobs, loadConfig, moveCard, readBoard, readControl, readIssue, setAgent, setDefaultAgent, setPause, setWip, tailJob, type AgentSettings } from '@agent-board/core';
+import { readRuntime, controlRuntime, type RuntimeAction, activeCards, findJob, launchCard, listJobs, loadConfig, moveCard, readBoard, readControl, readIssue, setAgent, setDefaultAgent, setPause, setWip, tailJob, type AgentSettings } from '@agent-board/core';
 import { autoUpdater } from 'electron-updater';
 
 const directory = fileURLToPath(new URL('.', import.meta.url));
@@ -18,10 +18,18 @@ function makeWindow(): void {
   void window.loadFile(join(directory, 'renderer', 'index.html'));
 }
 
+ipcMain.handle('runtime', async () => readRuntime(await configPromise));
+ipcMain.handle('runtime-action', async (_event, action: RuntimeAction, issue?: number) => controlRuntime(await configPromise, action, issue));
 ipcMain.handle('board', async () => readBoard(await configPromise));
 ipcMain.handle('jobs', async () => listJobs(await configPromise));
 ipcMain.handle('control', async () => {
   const config = await configPromise;
+  const runtime = await readRuntime(config);
+  if (runtime) return {
+    state: { paused: runtime.holds.length > 0, columns: [], cards: [], agents: {}, wip: {}, launches: {}, externalHold: false },
+    defaults: config.agents?.default ?? { engine: 'codex', model: 'default', effort: 'medium' }, limits: {},
+    active: runtime.missions.filter(m => m.executors.some(e => e.alive === true)).map(m => Number(m.issue)).filter(Number.isSafeInteger)
+  };
   const state = await readControl(config);
   return { state, defaults: state.defaultAgent ?? config.agents?.default ?? { engine: 'codex', model: 'default', effort: 'medium' }, limits: config.control?.wip ?? {}, active: [...await activeCards(config, state)] };
 });
@@ -50,7 +58,11 @@ ipcMain.handle('launch', async (_event, card: number) => {
   if (!item) throw new Error('Unknown card');
   return launchCard(config, item, board.items);
 });
-ipcMain.handle('move', async (_event, card: number, column: string) => moveCard(await configPromise, card, column));
+ipcMain.handle('move', async (_event, card: number, column: string) => {
+  const config = await configPromise;
+  if (config.controller) throw new Error('Managed board: change the mission in GitHub');
+  return moveCard(config, card, column);
+});
 ipcMain.handle('detail', async (_event, repository: string, number: number) => {
   const board = await readBoard(await configPromise);
   if (!board.items.some(item => item.repository === repository && item.number === number && item.kind === 'Issue')) throw new Error('Card not on configured project');

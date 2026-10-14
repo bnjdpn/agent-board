@@ -1,9 +1,14 @@
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
-import type { AgentSettings, Board, BoardItem, ControlState, IssueDetail, Job } from '@agent-board/core';
+import type { RuntimeStatus, RuntimeAction, AgentSettings, Board, BoardItem, ControlState, IssueDetail, Job } from '@agent-board/core';
 import './style.css';
 
 const root = document.querySelector<HTMLDivElement>('#app')!;
+let runtime: RuntimeStatus | null = null;
+let runtimeError = '';
+let runtimeBusy = false;
+let refreshing = false;
+let boardError = '';
 let board: Board | undefined;
 let jobs: Job[] = [];
 let control: { state: ControlState; defaults: AgentSettings; limits: Record<string, number>; active: number[] } | undefined;
@@ -56,8 +61,32 @@ function render(): void {
   pipeline.title = 'Pause globale des lancements';
   action(pipeline, () => window.agentBoard.pause(!(control?.state.paused || control?.state.externalHold)));
   header.append(pipeline);
+  if (runtime || runtimeError) {
+    pipeline.remove();
+    const actions = element('div', 'runtime-actions');
+    for (const [label, command] of [['Pause des départs', 'pause'], ['Reprendre', 'resume'], ['Arrêter les missions', 'stop'], ['Exécuter le prochain ticket', 'run']] as const) {
+      const button = element('button', 'small-button', label);
+      button.disabled = runtimeBusy || (!!runtimeError && command !== 'pause' && command !== 'stop') || (command === 'run' && !!runtime?.holds.length);
+      button.addEventListener('click', () => { void runtimeAction(command); });
+      actions.append(button);
+    }
+    header.append(actions);
+  }
   root.append(header);
-  if (!board) { root.append(element('p', 'loading', 'Chargement du projet…')); return; }
+  if (runtime || runtimeError) {
+    const panel = element('section', 'runtime-status');
+    panel.append(element('strong', '', runtimeError ? 'Contrôleur indisponible — état inconnu' : runtime!.holds.length ? 'Exécution suspendue' : 'Contrôleur disponible'));
+    if (runtimeError) panel.append(element('p', '', runtimeError));
+    if (runtime) {
+      panel.append(element('p', '', `${runtime.registered_jobs_count ?? 'Nombre inconnu de'} jobs enregistrés · état lu à ${new Date(runtime.observed_at * 1000).toLocaleTimeString()}`));
+      for (const hold of runtime.holds) panel.append(element('p', 'hold-reason', hold.kind === 'safety' ? 'Contrôle de sécurité non résolu : reprise bloquée.' : hold.reason));
+      if (runtime.missions.some(m => m.wait_reasons.some(r => r.startsWith('board périmé')))) panel.append(element('p', 'muted', 'Le cache du contrôleur doit être actualisé avant le prochain départ.'));
+      if (runtime.unknown_sources.length) panel.append(element('p', 'error', `Sources inconnues : ${runtime.unknown_sources.join(', ')}`));
+    }
+    panel.append(element('p', 'muted', 'Reprendre retire la pause opérateur après vérification. Les suspensions de sécurité restent en place.'));
+    root.append(panel);
+  }
+  if (!board) { root.append(element('p', boardError ? 'error' : 'loading', boardError || 'Chargement du projet…')); return; }
   const toolbar = element('section', 'toolbar');
   const statusSelect = element('select') as HTMLSelectElement;
   statusSelect.append(new Option('Tous les statuts', ''));
@@ -91,7 +120,7 @@ function render(): void {
   const effort = element('input') as HTMLInputElement; effort.value = control?.defaults.effort ?? 'medium'; effort.placeholder = 'Effort'; effort.setAttribute('aria-label', 'Effort par défaut');
   const saveDefault = element('button', 'small-button', 'Enregistrer');
   action(saveDefault, () => window.agentBoard.setDefaultAgent({ engine: engine.value as 'codex' | 'cursor', model: model.value.trim(), effort: effort.value.trim() }));
-  defaultForm.append(engine, model, effort, saveDefault); defaultSettings.append(summary, defaultForm); toolbar.append(defaultSettings);
+  defaultForm.append(engine, model, effort, saveDefault); defaultSettings.append(summary, defaultForm); if (!runtime && !runtimeError) toolbar.append(defaultSettings);
   const refresh = element('button', 'refresh', 'Actualiser');
   refresh.addEventListener('click', () => { void load(); });
   toolbar.append(refresh);
@@ -105,14 +134,14 @@ function render(): void {
       event.preventDefault();
       const number = Number(event.dataTransfer?.getData('text/plain'));
       const current = board?.items.find(candidate => candidate.number === number);
-      if (!current || current.status === column) return;
+      if (runtime || runtimeError || !current || current.status === column) return;
       void window.agentBoard.move(number, column).then(load).catch(error => window.alert((error as Error).message));
     });
     const items = visible.filter(item => item.status === column);
     const heading = element('div', 'column-title');
     const activeCount = board.items.filter(item => item.status === column && item.number && control?.active.includes(item.number)).length;
     const limit = control?.state.wip[column] ?? control?.limits[column];
-    heading.append(element('h2', '', column), element('span', 'count', `${activeCount}/${limit ?? '∞'} actifs`));
+    heading.append(element('h2', '', column), element('span', 'count', runtime || runtimeError ? `${items.length} tickets · ${runtimeError ? '?' : activeCount} actifs` : `${activeCount}/${limit ?? '∞'} actifs`));
     section.append(heading);
     const controls = element('div', 'column-controls');
     const pause = element('button', 'small-button', control?.state.columns.includes(column) ? '▶' : '❚❚');
@@ -125,19 +154,26 @@ function render(): void {
       if (input.value === '') { input.value = limit === undefined ? '' : String(limit); return; }
       void window.agentBoard.setWip(column, Number(input.value)).then(refreshControl).catch(error => window.alert((error as Error).message));
     });
-    label.append(input); controls.append(pause, label); section.append(controls);
+    label.append(input); controls.append(pause, label); if (!runtime && !runtimeError) section.append(controls);
     for (const item of items) {
       const card = element('button', 'card');
       if (item.number) {
-        card.draggable = true;
+        card.draggable = !runtime && !runtimeError;
         card.addEventListener('dragstart', event => event.dataTransfer?.setData('text/plain', String(item.number)));
       }
       card.append(element('span', 'card-number', item.number ? `#${item.number}` : 'Brouillon'), element('strong', '', item.title));
       const activeJob = jobs.find(job => job.cardNumber === item.number && item.number !== undefined);
       if (activeJob) card.append(element('span', 'job-badge', `${control?.active.includes(item.number!) ? '●' : '○'} ${activeJob.id}`));
       if (item.number) {
-        const settings = control?.state.agents[String(item.number)] ?? control?.defaults;
+        const settings = runtime || runtimeError ? undefined : control?.state.agents[String(item.number)] ?? control?.defaults;
         if (settings) card.append(element('span', 'agent-badge', `${settings.engine} · ${settings.model} · ${settings.effort}`));
+      }
+      if (runtime && item.number) {
+        const mission = runtime.missions.find(m => Number(m.issue) === item.number);
+        const live = mission?.executors.filter(e => e.alive === true) ?? [];
+        if (live.length) card.append(element('span', 'job-badge', `● ${live.map(e => e.engine ?? 'agent').join(', ')}`));
+        const reason = mission?.wait_reasons.find(r => !r.startsWith('board périmé') && !/^(operator|safety):/.test(r));
+        if (reason) card.append(element('span', 'card-reason', reason));
       }
       card.addEventListener('click', () => { selected = item; void showDetail(item); });
       section.append(card);
@@ -160,7 +196,7 @@ async function showDetail(item: BoardItem): Promise<void> {
   head.append(close);
   drawer.append(head, element('h2', 'detail-title', item.title));
   document.body.append(drawer);
-  if (item.number) {
+  if (item.number && !runtime && !runtimeError) {
     const card = item.number;
     const controls = element('section', 'detail-section agent-controls');
     controls.append(element('h3', '', 'Agent et pipeline'));
@@ -176,6 +212,19 @@ async function showDetail(item: BoardItem): Promise<void> {
     const launch = element('button', 'small-button', '▶ Lancer');
     action(launch, () => window.agentBoard.launch(card));
     controls.append(engine, model, effort, save, pause, launch); drawer.append(controls);
+  }
+  if (runtime && item.number) {
+    const section = element('section', 'detail-section');
+    section.append(element('h3', '', 'Exécution'));
+    const mission = runtime.missions.find(m => Number(m.issue) === item.number);
+    for (const reason of mission?.wait_reasons ?? []) section.append(element('p', 'muted', reason));
+    for (const [label, command] of [['Arrêter cette mission', 'stop'], ['Autoriser sa reprise', 'resume']] as const) {
+      const button = element('button', 'small-button', label);
+      button.disabled = runtimeBusy;
+      button.addEventListener('click', () => { void runtimeAction(command, item.number); });
+      section.append(button);
+    }
+    drawer.append(section);
   }
   if (!item.repository || !item.number || item.kind !== 'Issue') { drawer.append(element('p', 'muted', 'Détail disponible pour les issues GitHub.')); return; }
   drawer.append(element('p', 'muted', 'Chargement du détail…'));
@@ -227,11 +276,29 @@ async function showLog(drawer: HTMLElement, job: Job): Promise<void> {
 }
 
 async function load(): Promise<void> {
-  selected = undefined; stopTail(); board = undefined; render();
+  if (refreshing) return;
+  refreshing = true;
   try {
-    [board, jobs, control] = await Promise.all([window.agentBoard.board(), window.agentBoard.jobs(), window.agentBoard.control()]);
-    render();
-  } catch (error) { root.replaceChildren(element('p', 'error', `Impossible de charger le projet : ${(error as Error).message}`)); }
+    await refreshRuntime();
+    const results = await Promise.allSettled([window.agentBoard.board(), window.agentBoard.jobs(), window.agentBoard.control()] as const);
+    if (results[0].status === 'fulfilled') { board = results[0].value; boardError = ''; }
+    else boardError = `Board indisponible : ${String(results[0].reason)}`;
+    if (results[1].status === 'fulfilled') jobs = results[1].value;
+    if (results[2].status === 'fulfilled') control = results[2].value;
+    if (!selected) render();
+  } finally { refreshing = false; }
 }
 
+async function refreshRuntime(): Promise<void> {
+  try { runtime = await window.agentBoard.runtime(); runtimeError = ''; }
+  catch (error) { runtimeError = (error as Error).message; }
+}
+async function runtimeAction(command: RuntimeAction, issue?: number): Promise<void> {
+  if (runtimeBusy) return;
+  runtimeBusy = true; render();
+  try { await window.agentBoard.runtimeAction(command, issue); }
+  catch (error) { window.alert((error as Error).message); }
+  finally { await refreshRuntime(); runtimeBusy = false; render(); }
+}
 void load();
+setInterval(() => { if (!runtimeBusy) void load(); }, 15_000);

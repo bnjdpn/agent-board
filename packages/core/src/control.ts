@@ -32,6 +32,7 @@ async function saveControl(config: Config, state: ControlState): Promise<void> {
 }
 
 export async function withControlLock<T>(config: Config, update: (state: ControlState) => Promise<T>): Promise<T> {
+  if (config.controller) throw new Error('Managed by Studio Control: use runtime controls. Local overrides are disabled.');
   const lock = `${statePath(config)}.lock`;
   await mkdir(dirname(lock), { recursive: true });
   for (let attempt = 0; attempt < 60; attempt++) {

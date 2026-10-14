@@ -1,7 +1,9 @@
 import { contextBridge, ipcRenderer } from 'electron';
-import type { AgentSettings, Board, ControlState, IssueDetail, Job, LogEntry } from '@agent-board/core';
+import type { RuntimeStatus, RuntimeAction, AgentSettings, Board, ControlState, IssueDetail, Job, LogEntry } from '@agent-board/core';
 
 const api = {
+  runtime: (): Promise<RuntimeStatus | null> => ipcRenderer.invoke('runtime'),
+  runtimeAction: (action: RuntimeAction, issue?: number): Promise<string> => ipcRenderer.invoke('runtime-action', action, issue),
   board: (): Promise<Board> => ipcRenderer.invoke('board'),
   jobs: (): Promise<Job[]> => ipcRenderer.invoke('jobs'),
   control: (): Promise<{ state: ControlState; defaults: AgentSettings; limits: Record<string, number>; active: number[] }> => ipcRenderer.invoke('control'),

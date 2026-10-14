@@ -2,6 +2,7 @@ import { watch, type FSWatcher } from 'node:fs';
 import { open, readdir, readFile, stat } from 'node:fs/promises';
 import { basename, dirname, join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
+import { readRuntime } from './runtime.js';
 import { expandPath } from './config.js';
 import type { Config, Job, LogAdapter, LogEntry } from './types.js';
 
@@ -24,8 +25,8 @@ export async function listJobs(config: Config): Promise<Job[]> {
   const jobs: Job[] = [];
   let dates: string[];
   try { dates = await readdir(root); } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
-    throw error;
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') dates = [];
+    else throw error;
   }
   for (const date of dates) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
@@ -40,6 +41,20 @@ export async function listJobs(config: Config): Promise<Job[]> {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       }
       jobs.push({ id: `${date}/${jobName}`, path, cardNumber: cardNumberFromPrompt(prompt, config.jobs.cardPattern), modifiedAt: info.mtimeMs });
+    }
+  }
+  if (config.controller) {
+    const runtime = await readRuntime(config);
+    for (const mission of runtime?.missions ?? []) for (const executor of mission.executors) {
+      if (!executor.run || !mission.issue) continue;
+      const existing = jobs.find(job => job.path === executor.run);
+      if (existing) existing.cardNumber = Number(mission.issue);
+      else {
+        try {
+          const info = await stat(executor.run);
+          if (info.isDirectory()) jobs.push({ id: `runtime:${executor.run}`, path: executor.run, cardNumber: Number(mission.issue), modifiedAt: info.mtimeMs });
+        } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+      }
     }
   }
   return jobs.sort((a, b) => b.modifiedAt - a.modifiedAt);

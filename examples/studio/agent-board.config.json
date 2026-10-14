@@ -1,23 +1,59 @@
 {
-  "github": { "owner": "bnjdpn", "projectNumber": 1 },
-  "board": { "statusField": "Status", "columns": ["Idées", "À faire", "En cours", "En revue", "Terminé"], "filterFields": ["Plateforme"] },
+  "github": {
+    "owner": "bnjdpn",
+    "projectNumber": 1
+  },
+  "board": {
+    "statusField": "Status",
+    "columns": [
+      "Idées",
+      "À cadrer",
+      "Prêt",
+      "En cours",
+      "Relecture",
+      "À livrer",
+      "En validation store",
+      "Terminé"
+    ],
+    "filterFields": [
+      "Plateforme"
+    ]
+  },
   "jobs": {
     "directory": "~/Documents/Apps/archives/jobs/<date>/<job>",
     "cardPattern": "(?:carte|card|issue)(?:\\s+[A-Za-z][\\w-]*)?\\s*#?(\\d+)|#(\\d+)",
     "adapters": [
-      { "kind": "transcript", "pattern": "<engine>.log" },
-      { "kind": "jsonl", "pattern": "<engine>.jsonl" },
-      { "kind": "plain", "pattern": "notify.log" },
-      { "kind": "plain", "pattern": "STATUS" },
-      { "kind": "plain", "pattern": "RESULT*" }
+      {
+        "kind": "transcript",
+        "pattern": "<engine>.log"
+      },
+      {
+        "kind": "jsonl",
+        "pattern": "<engine>.jsonl"
+      },
+      {
+        "kind": "plain",
+        "pattern": "notify.log"
+      },
+      {
+        "kind": "plain",
+        "pattern": "STATUS"
+      },
+      {
+        "kind": "plain",
+        "pattern": "RESULT*"
+      }
     ]
   },
-  "agents": { "default": { "engine": "codex", "model": "default", "effort": "medium" } },
-  "control": {
-    "stateFile": "agent-board.state.json",
-    "holdFile": "~/Documents/Apps/archives/jobs/FILL_HOLD",
-    "readyColumns": ["À faire"],
-    "wip": { "À faire": 2, "En cours": 3 }
+  "agents": {
+    "default": {
+      "engine": "codex",
+      "model": "default",
+      "effort": "medium"
+    }
   },
-  "launcher": { "command": "your-job-launcher", "args": ["--card", "<card>", "--engine", "<engine>", "--model", "<model>", "--effort", "<effort>"] }
+  "controller": {
+    "kind": "studio",
+    "command": "~/.local/bin/studio"
+  }
 }
